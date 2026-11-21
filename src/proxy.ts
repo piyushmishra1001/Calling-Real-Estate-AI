@@ -23,12 +23,13 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // getUser() validates the token with Supabase; getSession() alone would trust the cookie.
-  const { data } = await supabase.auth.getUser();
+  // getClaims() verifies the token signature (and refreshes it when expired) without a network round-trip
+  // on every request. Server code re-checks the profile in the database on each page load.
+  const { data } = await supabase.auth.getClaims();
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC.some((p) => path === p || path.startsWith(p + "/"));
 
-  if (!data.user && !isPublic) {
+  if (!data?.claims && !isPublic) {
     const redirect = request.nextUrl.clone();
     redirect.pathname = "/login";
     redirect.search = "";

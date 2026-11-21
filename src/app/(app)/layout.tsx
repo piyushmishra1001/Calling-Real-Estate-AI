@@ -27,11 +27,12 @@ const ROLE_LABEL: Record<Role, string> = {
 };
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const session = await getSession();
-  if (!session) redirect("/login?reason=no-access");
-
   const supabase = await createClient();
-  const { data: settings } = await supabase.from("platform_settings").select("calling_kill_switch").eq("id", 1).maybeSingle();
+  const [session, { data: settings }] = await Promise.all([
+    getSession(),
+    supabase.from("platform_settings").select("calling_kill_switch").eq("id", 1).maybeSingle(),
+  ]);
+  if (!session) redirect("/login?reason=no-access");
   const links = NAV.filter((n) => n.roles.includes(session.role));
 
   return (

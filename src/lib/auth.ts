@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
@@ -14,35 +15,41 @@ export type Session = {
   fullName: string | null;
 };
 
-/** Reads who the user is from the database (never from client-supplied data). Null when not usable. */
-export async function getSession(): Promise<Session | null> {
+/**
+ * Reads who the user is from the database (never from client-supplied data). Null when not usable.
+ * Cached per request: the layout and the page both call it, but it only hits the network once.
+ * The token is verified by signature (getClaims) rather than a network call; the profile query below
+ * still runs on every request, so deactivating a user or suspending a partner takes effect at once.
+ */
+export const getSession = cache(async (): Promise<Session | null> => {
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return null;
+  const { data: auth } = await supabase.auth.getClaims();
+  const userId = auth?.claims?.sub;
+  if (!userId) return null;
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, role, org_id, full_name, email, is_active")
-    .eq("id", auth.user.id)
+    .select("id, role, org_id, full_name, email, is_active, organizations(name, status)")
+    .eq("id", userId)
     .maybeSingle();
   if (!profile || !profile.is_active) return null;
 
   let orgName: string | null = null;
   if (profile.org_id) {
-    const { data: org } = await supabase.from("organizations").select("name, status").eq("id", profile.org_id).maybeSingle();
+    const org = Array.isArray(profile.organizations) ? profile.organizations[0] : profile.organizations;
     // A suspended or deactivated partner has no usable session at all.
     if (!org || org.status !== "active") return null;
     orgName = org.name;
   }
   return {
     userId: profile.id,
-    email: profile.email ?? auth.user.email ?? "",
+    email: profile.email ?? (typeof auth?.claims?.email === "string" ? auth.claims.email : ""),
     role: profile.role as Role,
     orgId: profile.org_id,
     orgName,
     fullName: profile.full_name,
   };
-}
+});
 
 /** Server-side authorisation gate. Every page and action calls this; UI visibility is never the control. */
 export async function requireRole(...allowed: Role[]): Promise<Session> {
