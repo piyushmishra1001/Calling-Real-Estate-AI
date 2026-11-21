@@ -1,9 +1,70 @@
 @import "tailwindcss";
+@import "../styles/tokens/fig-tokens.css";
+@import "../styles/tokens/typography.css";
+@import "../styles/tokens/shadows.css";
+@import "../styles/tokens/brand.css";
 
+/*
+ * Design system: BondScanner (blue primary, gray secondary, Inter, hairline cards, soft cool shadows).
+ * Existing components use Tailwind's `indigo-*` and `slate-*` classes. Remap those palettes to the
+ * design-system ramps so every page follows the tokens without per-page rewrites.
+ */
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-slate-50: var(--gray-50);
+  --color-slate-100: var(--gray-100);
+  --color-slate-200: var(--gray-200);
+  --color-slate-300: var(--gray-300);
+  --color-slate-400: var(--gray-400);
+  --color-slate-500: var(--gray-500);
+  --color-slate-600: var(--gray-600);
+  --color-slate-700: var(--gray-700);
+  --color-slate-800: var(--gray-800);
+  --color-slate-900: var(--gray-900);
+  --color-slate-950: var(--gray-950);
+
+  --color-indigo-50: var(--blue-50);
+  --color-indigo-100: var(--blue-100);
+  --color-indigo-200: var(--blue-200);
+  --color-indigo-300: var(--blue-300);
+  --color-indigo-400: var(--blue-400);
+  --color-indigo-500: var(--blue-500);
+  --color-indigo-600: var(--blue-900); /* brand CTA fill / links */
+  --color-indigo-700: var(--blue-950); /* hover */
+  --color-indigo-800: var(--blue-950);
+  --color-indigo-900: var(--blue-950);
+
+  --color-red-50: var(--state-error-lighter);
+  --color-red-200: var(--state-error-light);
+  --color-red-600: var(--state-error-base);
+  --color-red-700: var(--state-error-base);
+  --color-emerald-50: var(--state-success-lighter);
+  --color-emerald-200: var(--state-success-light);
+  --color-emerald-700: var(--state-success-base);
+  --color-amber-50: var(--state-warning-lighter);
+  --color-amber-200: var(--state-warning-light);
+  --color-amber-700: var(--state-warning-base);
+  --color-amber-800: var(--state-warning-dark);
+  --color-sky-50: var(--state-information-lighter);
+  --color-sky-200: var(--state-information-light);
+  --color-sky-700: var(--state-information-base);
 }
+
+html { font-optical-sizing: auto; }
 
 body {
   font-family: var(--font-sans);
+  font-feature-settings: var(--ot-ui);
+  background: var(--surface-sunken);
+  color: var(--text-title);
+  -webkit-font-smoothing: antialiased;
 }
+
+h1, h2, h3 { letter-spacing: -0.012em; }
+
+/* Money and figures: tabular, slashed zero. */
+.figure, table td, table th { font-variant-numeric: tabular-nums slashed-zero; }
+
+:focus-visible { outline: none; box-shadow: var(--ring-primary); border-radius: var(--r-8); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: var(--ring-primary); }
