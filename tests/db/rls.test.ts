@@ -619,3 +619,16 @@ describe("knowledge-base approval workflow", () => {
     expect((await ctx.as(ID.adminA, (q) => q("select 1 from project_kb_versions"))).rows).toHaveLength(0);
   });
 });
+
+describe("calling-gate scope", () => {
+  it("a partner can check their own gate but not another partner's", async () => {
+    const own = await ctx.as(ID.adminA, (q) => q("select can_start_call($1) as r", [ID.orgA]));
+    expect(own.rows[0].r.allowed).toBe(false); // no AI entitlement on the default plan
+    await expect(ctx.as(ID.adminA, (q) => q("select can_start_call($1)", [ID.orgB]))).rejects.toThrow(/not allowed/);
+    await expect(ctx.as(ID.empB1, (q) => q("select can_start_call($1)", [ID.orgA]))).rejects.toThrow(/not allowed/);
+  });
+  it("the super admin and the server (service role) can check any organisation", async () => {
+    expect((await ctx.as(ID.superAdmin, (q) => q("select can_start_call($1) as r", [ID.orgB]))).rows[0].r.reason).toBe("no_ai_entitlement");
+    expect((await ctx.admin("select can_start_call($1) as r", [ID.orgB])).rows[0].r.reason).toBe("no_ai_entitlement");
+  });
+});

@@ -8,7 +8,7 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
   return (
     <>
       <h1 className="mb-1 text-lg font-semibold">Reset your password</h1>
-      <p className="mb-4 text-sm text-slate-600">We'll email you a link to choose a new one.</p>
+      <p className="mb-4 text-sm text-slate-600">We&apos;ll email you a link to choose a new one.</p>
       {sp.error === "expired-link" && <div className="mb-4"><Notice>That link has expired or was already used. Request a new one.</Notice></div>}
       <AuthForm action={requestPasswordReset} submit="Send reset link" fields={[{ name: "email", label: "Email", type: "email", autoComplete: "email" }]} />
       <div className="mt-4 text-center text-sm">

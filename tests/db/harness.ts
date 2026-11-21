@@ -89,4 +89,6 @@ export async function createDb() {
   return { db, as, admin };
 }
 
-export type Query = (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+// Query results are deliberately untyped in tests: each test asserts the exact shape it expects.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Query = (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, any>[] }>;
