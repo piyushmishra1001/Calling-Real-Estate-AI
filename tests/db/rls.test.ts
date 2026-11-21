@@ -539,3 +539,83 @@ describe("calling gate, usage limits and kill switch", () => {
     await expect(ctx.as(ID.adminA, (q) => q("select usage_alert_level($1)", [ID.orgB]))).rejects.toThrow(/not allowed/);
   });
 });
+
+describe("partner dashboard stats", () => {
+  it("returns org-wide numbers to the org's admin only", async () => {
+    await ctx.admin("update org_entitlements set monthly_minute_limit = 500 where org_id = $1", [ID.orgA]);
+    await ctx.admin(
+      `insert into calls (org_id, lead_id, project_id, connected, duration_seconds, stt_cost_inr, tts_cost_inr, telephony_cost_inr)
+       values ($1, $2, $3, true, 120, 1, 1, 2), ($1, $2, $3, false, 0, 0, 0, 0.5)`,
+      [ID.orgA, ID.leadA1, ID.proj1],
+    );
+    const s = (await ctx.as(ID.adminA, (q) => q("select partner_stats($1) as s", [ID.orgA]))).rows[0].s;
+    expect(s.leads_total).toBe(2);
+    expect(s.calls_attempted).toBe(2);
+    expect(s.calls_connected).toBe(1);
+    expect(Number(s.minutes_used)).toBe(2);
+    expect(s.minutes_limit).toBe(500);
+    expect(Number(s.telephony_cost_inr)).toBe(2.5);
+  });
+
+  it("is refused to employees, other partners and the super admin", async () => {
+    await expect(ctx.as(ID.empA1, (q) => q("select partner_stats($1)", [ID.orgA]))).rejects.toThrow(/not allowed/);
+    await expect(ctx.as(ID.adminB, (q) => q("select partner_stats($1)", [ID.orgA]))).rejects.toThrow(/not allowed/);
+    await expect(ctx.as(ID.superAdmin, (q) => q("select partner_stats($1)", [ID.orgA]))).rejects.toThrow(/not allowed/);
+  });
+
+  it("counts only consented, still-callable leads as eligible", async () => {
+    await ctx.admin("update leads set consent_status = 'granted' where id = $1", [ID.leadA1]);
+    const s = (await ctx.as(ID.adminA, (q) => q("select partner_stats($1) as s", [ID.orgA]))).rows[0].s;
+    expect(s.leads_eligible).toBe(1);
+  });
+});
+
+describe("knowledge-base approval workflow", () => {
+  const draft = async (version: number, status = "pending_review", facts = '{"pricing":"Rs 85 lakh"}') =>
+    (await ctx.admin(
+      `insert into project_kb_versions (project_id, version, facts, status) values ($1, $2, $3::jsonb, $4) returning id`,
+      [ID.proj1, version, facts, status],
+    )).rows[0].id as string;
+
+  it("a super admin can approve; the reviewer is recorded as the caller and an audit row is written", async () => {
+    const id = await draft(1);
+    await ctx.as(ID.superAdmin, (q) => q("select approve_kb_version($1)", [id]));
+    const v = (await ctx.admin("select status, reviewed_by from project_kb_versions where id = $1", [id])).rows[0];
+    expect(v).toEqual({ status: "approved", reviewed_by: ID.superAdmin });
+    expect((await ctx.admin("select 1 from audit_logs where action = 'kb.approve'")).rows).toHaveLength(1);
+    // now visible to assigned partners
+    expect((await ctx.as(ID.adminA, (q) => q("select version from project_kb_versions"))).rows).toHaveLength(1);
+  });
+
+  it("approving a new version supersedes the previous approved one atomically", async () => {
+    const v1 = await draft(1);
+    await ctx.as(ID.superAdmin, (q) => q("select approve_kb_version($1)", [v1]));
+    const v2 = await draft(2, "pending_review", '{"pricing":"Rs 90 lakh"}');
+    await ctx.as(ID.superAdmin, (q) => q("select approve_kb_version($1)", [v2]));
+    const rows = (await ctx.admin("select version, status from project_kb_versions order by version")).rows;
+    expect(rows).toEqual([{ version: 1, status: "superseded" }, { version: 2, status: "approved" }]);
+    // partners see only the current approved facts
+    const seen = (await ctx.as(ID.adminA, (q) => q("select version from project_kb_versions"))).rows;
+    expect(seen).toEqual([{ version: 2 }]);
+  });
+
+  it("partners and employees cannot approve", async () => {
+    const id = await draft(1);
+    await expect(ctx.as(ID.adminA, (q) => q("select approve_kb_version($1)", [id]))).rejects.toThrow(/super admin only/);
+    await expect(ctx.as(ID.empA1, (q) => q("select approve_kb_version($1)", [id]))).rejects.toThrow(/super admin only/);
+  });
+
+  it("only a version pending review with content can be approved", async () => {
+    await expect(ctx.as(ID.superAdmin, (q) => q("select approve_kb_version($1)", [null]))).rejects.toThrow();
+    const d = await draft(1, "draft");
+    await expect(ctx.as(ID.superAdmin, (q) => q("select approve_kb_version($1)", [d]))).rejects.toThrow(/pending review/);
+    const empty = await draft(2, "pending_review", "{}");
+    await expect(ctx.as(ID.superAdmin, (q) => q("select approve_kb_version($1)", [empty]))).rejects.toThrow(/empty/);
+  });
+
+  it("a rejected version is never visible to partners", async () => {
+    const id = await draft(1);
+    await ctx.as(ID.superAdmin, (q) => q("select reject_kb_version($1)", [id]));
+    expect((await ctx.as(ID.adminA, (q) => q("select 1 from project_kb_versions"))).rows).toHaveLength(0);
+  });
+});
