@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { audit, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { parseLeadCsv, type RejectedRow } from "@/lib/csv-import";
 import { MANUAL_STATUSES } from "@/lib/lead-status";
+import { parseLeadForm } from "@/lib/lead-input";
 
 export type ImportState =
   | undefined
@@ -156,4 +158,90 @@ export async function requestVisit(form: FormData) {
   await supabase.from("leads").update({ status: "visit_requested" }).eq("id", id);
   revalidatePath(`/leads/${id}`);
   revalidatePath("/visits");
+}
+
+export type FormState = { error?: string; message?: string } | undefined;
+
+/** Adds one lead by hand. Partner admins only (the database enforces the same rule). */
+export async function createLead(_: FormState, form: FormData): Promise<FormState> {
+  const s = await requireRole("partner_admin");
+  const parsed = parseLeadForm((k) => String(form.get(k) ?? ""), { requirePhone: true });
+  if (!parsed.ok) return { error: parsed.error };
+
+  const projectId = String(form.get("project_id") ?? "");
+  const assignTo = String(form.get("assigned_to") ?? "");
+  if (!projectId) return { error: "Choose a project." };
+
+  const supabase = await createClient();
+  const { data: project } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle();
+  if (!project) return { error: "That project is not assigned to your organisation." };
+
+  let assignedTo: string | null = null;
+  if (assignTo) {
+    const { data: emp } = await supabase.from("profiles").select("id").eq("id", assignTo).eq("role", "partner_employee").eq("is_active", true).maybeSingle();
+    if (!emp) return { error: "That employee is not in your organisation." };
+    assignedTo = emp.id;
+  }
+
+  // A number that opted out stays blocked, even when someone adds it again by hand.
+  const { data: optOut } = await supabase.from("opt_outs").select("phone").eq("phone", parsed.phone!).maybeSingle();
+
+  const { data: lead, error } = await supabase
+    .from("leads")
+    .insert({
+      ...parsed.fields,
+      phone: parsed.phone!,
+      org_id: s.orgId!,
+      project_id: projectId,
+      assigned_to: assignedTo,
+      status: optOut ? "do_not_contact" : "new",
+      consent_status: optOut ? "denied" : "unknown",
+    })
+    .select("id")
+    .single();
+  if (error) {
+    if (error.code === "23505") return { error: "This phone number is already a lead in that project." };
+    return { error: "Could not add the lead. Please try again." };
+  }
+  await audit(s, "lead.create", "lead", lead.id);
+  revalidatePath("/leads");
+  redirect(`/leads/${lead.id}`);
+}
+
+/** Edits the facts about a lead that drive its score: budget, timeline, preferences. */
+export async function updateLeadDetails(_: FormState, form: FormData): Promise<FormState> {
+  const s = await requireRole("partner_admin", "partner_employee");
+  const id = String(form.get("id") ?? "");
+  const parsed = parseLeadForm((k) => String(form.get(k) ?? ""), { requirePhone: false });
+  if (!parsed.ok) return { error: parsed.error };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("leads").update(parsed.fields).eq("id", id).select("id").maybeSingle();
+  if (error || !data) return { error: "Could not save. This lead may no longer be assigned to you." };
+  await supabase.from("lead_activities").insert({ org_id: s.orgId!, lead_id: id, actor_id: s.userId, kind: "details_updated", payload: {} });
+  revalidatePath(`/leads/${id}`);
+  revalidatePath("/leads");
+  revalidatePath("/insights");
+  return { message: "Details saved." };
+}
+
+/** Assigns many leads to one employee (or unassigns them) in a single step. */
+export async function bulkAssign(form: FormData) {
+  const s = await requireRole("partner_admin");
+  const ids = form.getAll("ids").map(String).filter(Boolean).slice(0, 500);
+  const to = String(form.get("assigned_to") ?? "");
+  if (ids.length === 0) return;
+
+  const supabase = await createClient();
+  if (to) {
+    const { data: emp } = await supabase.from("profiles").select("id").eq("id", to).eq("role", "partner_employee").eq("is_active", true).maybeSingle();
+    if (!emp) return;
+  }
+  const { data: changed, error } = await supabase.from("leads").update({ assigned_to: to || null }).in("id", ids).select("id");
+  if (error || !changed?.length) return;
+  await supabase.from("lead_activities").insert(
+    changed.map((l) => ({ org_id: s.orgId!, lead_id: l.id, actor_id: s.userId, kind: "assigned", payload: { assigned_to: to || null, bulk: true } })),
+  );
+  await audit(s, "lead.bulk_assign", "lead", null, { count: changed.length, assigned_to: to || null });
+  revalidatePath("/leads");
 }

@@ -3,9 +3,12 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Card, Empty, PageHeader, btn, btnDanger, btnGhost, input, label, LEAD_TONE, pretty } from "@/components/ui";
-import { dt, inr } from "@/lib/format";
+import { daysAgoIso, dt, inr } from "@/lib/format";
+import { ActionForm } from "@/components/simple-form";
+import { LeadFields } from "@/components/lead-fields";
+import { BAND_LABEL, BAND_TONE, scoreLead, strongestVisitStatus } from "@/lib/insights/score";
 import { MANUAL_STATUSES } from "@/lib/lead-status";
-import { addNote, assignLead, createCallback, recordOptOut, requestVisit, updateLead } from "../actions";
+import { addNote, assignLead, createCallback, recordOptOut, requestVisit, updateLead, updateLeadDetails } from "../actions";
 
 type Line = { speaker: string; text: string };
 
@@ -26,6 +29,18 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
     s.role === "partner_admin" ? supabase.from("profiles").select("id, full_name, email").eq("role", "partner_employee").eq("is_active", true) : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string | null }[] }),
   ]);
   const proj = Array.isArray(lead.projects) ? lead.projects[0] : lead.projects;
+  const since = daysAgoIso(30);
+  const score = scoreLead({
+    status: lead.status,
+    budget: lead.budget == null ? null : Number(lead.budget),
+    purchase_timeline: lead.purchase_timeline,
+    source: lead.source,
+    created_at: lead.created_at,
+    last_interaction_at: lead.last_interaction_at,
+    next_follow_up_at: lead.next_follow_up_at,
+    recent_activity_count: (activities ?? []).filter((a) => a.created_at >= since).length,
+    visit_status: strongestVisitStatus((visits ?? []).map((v) => v.status)),
+  });
   const locked = ["visit_confirmed", "visit_attended", "do_not_contact", "queued", "calling"].includes(lead.status);
 
   return (
@@ -45,6 +60,13 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 ["Consent", pretty(lead.consent_status)], ["Last interaction", dt(lead.last_interaction_at)],
               ].map(([k, v]) => <div key={k as string}><dt className="text-xs text-slate-500">{k}</dt><dd>{(v as string) || "—"}</dd></div>)}
             </dl>
+          </Card>
+
+          <Card title="Edit details">
+            <ActionForm action={updateLeadDetails} submit="Save details" className="space-y-3">
+              <input type="hidden" name="id" value={id} />
+              <LeadFields values={lead} />
+            </ActionForm>
           </Card>
 
           <Card title="Update lead">
@@ -106,6 +128,28 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         </div>
 
         <div className="space-y-4">
+          <Card title="Lead score">
+            {score.band === "excluded" ? (
+              <p className="text-sm text-slate-600">Not scored: this lead must not be contacted.</p>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="figure text-[28px] font-semibold leading-9 tracking-tight">{score.score}<span className="text-sm font-normal text-slate-500"> / 100</span></span>
+                  <Badge tone={BAND_TONE[score.band]}>{BAND_LABEL[score.band]}</Badge>
+                </div>
+                {score.nextAction && <p className="mt-2 rounded-[10px] bg-[var(--brand-soft)] px-3 py-2 text-sm text-[var(--brand)]">Next: {score.nextAction}</p>}
+                <ul className="mt-3 space-y-2 text-xs">
+                  {score.reasons.map((r) => (
+                    <li key={r.label}>
+                      <div className="flex justify-between text-slate-600"><span>{r.label}</span><span className="figure">{r.points}/{r.max}</span></div>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-sunken)]"><div className="h-full rounded-full bg-[var(--brand)]" style={{ width: `${(r.points / r.max) * 100}%` }} /></div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-slate-500">Rule-based guide for prioritising. It is not a prediction.</p>
+              </>
+            )}
+          </Card>
           {s.role === "partner_admin" && (
             <Card title="Assignment">
               <form action={assignLead} className="space-y-2"><input type="hidden" name="id" value={id} />

@@ -4,10 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge, Card, Empty, PageHeader, Notice, Stat, pretty } from "@/components/ui";
 import { daysAgoIso, num } from "@/lib/format";
 import { buildInsights, type LeadRow } from "@/lib/insights/metrics";
-import { BAND_LABEL, BAND_TONE } from "@/lib/insights/score";
+import { BAND_LABEL, BAND_TONE, strongestVisitStatus } from "@/lib/insights/score";
 
 const MAX_LEADS = 5000;
-const VISIT_RANK: Record<string, number> = { attended: 4, confirmed: 3, pending_confirmation: 2, requested: 1 };
 
 export default async function InsightsPage() {
   const s = await requireRole("partner_admin", "partner_employee");
@@ -30,18 +29,14 @@ export default async function InsightsPage() {
 
   const activity = new Map<string, number>();
   for (const a of actsRes.data ?? []) activity.set(a.lead_id, (activity.get(a.lead_id) ?? 0) + 1);
-  const visit = new Map<string, string>();
-  for (const v of visitsRes.data ?? []) {
-    if (!(v.status in VISIT_RANK)) continue;
-    const cur = visit.get(v.lead_id);
-    if (!cur || VISIT_RANK[v.status] > VISIT_RANK[cur]) visit.set(v.lead_id, v.status);
-  }
+  const visitsByLead = new Map<string, string[]>();
+  for (const v of visitsRes.data ?? []) visitsByLead.set(v.lead_id, [...(visitsByLead.get(v.lead_id) ?? []), v.status]);
 
   const rows: LeadRow[] = (leadsRes.data ?? []).map((l) => ({
     ...l,
     budget: l.budget == null ? null : Number(l.budget),
     recent_activity_count: activity.get(l.id) ?? 0,
-    visit_status: visit.get(l.id) ?? null,
+    visit_status: strongestVisitStatus(visitsByLead.get(l.id) ?? []),
   }));
   const ins = buildInsights(rows);
   const projectName = new Map((projectsRes.data ?? []).map((p) => [p.id, p.name]));

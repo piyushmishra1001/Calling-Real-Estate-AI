@@ -151,6 +151,18 @@ function nextAction(l: ScoreInput, band: Band, daysSinceTouch: number | null, no
   return null;
 }
 
+const VISIT_RANK: Record<string, number> = { attended: 4, confirmed: 3, pending_confirmation: 2, requested: 1 };
+
+/** The furthest-along site-visit state among a lead's visits; cancelled, rescheduled and no-show visits are ignored. */
+export function strongestVisitStatus(statuses: string[]): string | null {
+  let best: string | null = null;
+  for (const st of statuses) {
+    if (!(st in VISIT_RANK)) continue;
+    if (best === null || VISIT_RANK[st] > VISIT_RANK[best]) best = st;
+  }
+  return best;
+}
+
 export const BAND_LABEL: Record<Band, string> = { hot: "Hot", warm: "Warm", cold: "Cold", low: "Low", excluded: "Excluded" };
 export const BAND_TONE: Record<Band, "green" | "amber" | "blue" | "slate" | "red"> = {
   hot: "green", warm: "amber", cold: "blue", low: "slate", excluded: "red",
