@@ -2,18 +2,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { Badge, Card, Empty, PageHeader, btn, btnDanger, btnGhost, input, label, LEAD_TONE, pretty } from "@/components/ui";
+import { Badge, Card, Empty, Notice, PageHeader, btn, btnDanger, btnGhost, input, label, LEAD_TONE, pretty } from "@/components/ui";
 import { daysAgoIso, dt, inr } from "@/lib/format";
 import { ActionForm } from "@/components/simple-form";
 import { LeadFields } from "@/components/lead-fields";
 import { BAND_LABEL, BAND_TONE, scoreLead, strongestVisitStatus } from "@/lib/insights/score";
 import { MANUAL_STATUSES } from "@/lib/lead-status";
-import { addNote, assignLead, createCallback, recordOptOut, requestVisit, updateLead, updateLeadDetails } from "../actions";
+import { addNote, assignLead, createCallback, recordOptOut, requestVisit, updateLead, updateLeadDetails, deleteLead } from "../actions";
+import { DeleteButton } from "@/components/delete-button";
 
 type Line = { speaker: string; text: string };
 
-export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
+  const { error: pageError } = await searchParams;
   const s = await requireRole("partner_admin", "partner_employee");
   const supabase = await createClient();
 
@@ -48,8 +50,9 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
       <PageHeader
         title={lead.name}
         subtitle={`${lead.phone} · ${proj?.name ?? ""}`}
-        actions={<div className="flex items-center gap-2"><Badge tone={LEAD_TONE[lead.status] ?? "slate"}>{pretty(lead.status)}</Badge><Link href="/leads" className={btnGhost}>Back</Link></div>}
+        actions={<div className="flex items-center gap-2"><Badge tone={LEAD_TONE[lead.status] ?? "slate"}>{pretty(lead.status)}</Badge><Link href="/leads" className={btnGhost}>Back</Link>{s.role === "partner_admin" && <DeleteButton action={deleteLead} id={lead.id} label="Delete lead" confirm={`Delete ${lead.name}? This cannot be undone.`} />}</div>}
       />
+      {pageError && <div className="mb-4"><Notice tone="red">{pageError}</Notice></div>}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <Card title="Details">

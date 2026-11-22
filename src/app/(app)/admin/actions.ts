@@ -175,35 +175,25 @@ export async function decideKb(form: FormData) {
   revalidatePath("/admin/projects/[id]", "page");
 }
 
-/**
- * Permanently deletes a partner: its data, its login accounts, and the organisation itself.
- * The Super Admin must type the partner's exact name. Because the login accounts are removed too,
- * the same email addresses can be invited again afterwards.
- */
-export async function deletePartner(_: AdminState, form: FormData): Promise<AdminState> {
+/** Permanently deletes a partner: its data, its login accounts and the organisation. Super Admin only; the UI asks to confirm. */
+export async function deletePartner(form: FormData) {
   const s = await requireRole("super_admin");
-  const id = String(form.get("org_id") ?? "");
-  const typed = String(form.get("confirm") ?? "").trim();
-
+  const id = String(form.get("id") ?? "");
   const supabase = await createClient();
   const { data: org } = await supabase.from("organizations").select("id, name").eq("id", id).maybeSingle();
-  if (!org) return { error: "That partner no longer exists." };
-  if (typed !== org.name) return { error: `Type the partner's name exactly (“${org.name}”) to confirm.` };
+  if (!org) { revalidatePath("/admin/partners"); return; }
 
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("delete_partner_data", { p_org: org.id });
-  if (error) return { error: "Could not delete this partner. Nothing was removed." };
+  if (error) throw new Error(`Could not delete this partner: ${error.message}`);
 
-  // Now remove the login accounts so the same emails can be invited again.
+  // Remove the login accounts too, so the same emails can be invited again.
   const userIds: string[] = (data as { user_ids?: string[] } | null)?.user_ids ?? [];
   let failed = 0;
   for (const uid of userIds) {
     const { error: delErr } = await admin.auth.admin.deleteUser(uid);
     if (delErr && !/not found/i.test(delErr.message)) failed++;
   }
-
   await audit(s, "partner.delete", "organization", org.id, { name: org.name, users_removed: userIds.length - failed, users_failed: failed });
   revalidatePath("/admin/partners");
-  if (failed > 0) return { error: `${org.name} was deleted, but ${failed} login account(s) could not be removed. Remove them in Supabase → Authentication → Users so the email can be reused.` };
-  return { message: `${org.name} was deleted.` };
 }

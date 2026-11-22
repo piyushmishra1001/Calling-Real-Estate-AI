@@ -245,3 +245,19 @@ export async function bulkAssign(form: FormData) {
   await audit(s, "lead.bulk_assign", "lead", null, { count: changed.length, assigned_to: to || null });
   revalidatePath("/leads");
 }
+
+/** Deletes a lead and its notes, tasks and visits. Partner Admin only (enforced by RLS too). Leads with call records are kept. */
+export async function deleteLead(form: FormData) {
+  const s = await requireRole("partner_admin");
+  const id = String(form.get("id") ?? "");
+  const supabase = await createClient();
+  const { data: lead } = await supabase.from("leads").select("id, name").eq("id", id).maybeSingle();
+  if (!lead) redirect("/leads");
+  const { error } = await supabase.from("leads").delete().eq("id", id);
+  if (error) {
+    redirect(`/leads/${id}?error=${encodeURIComponent("This lead has call records, so it can't be deleted. Mark it Do not contact instead.")}`);
+  }
+  await audit(s, "lead.delete", "lead", id, { name: lead.name });
+  revalidatePath("/leads");
+  redirect("/leads");
+}

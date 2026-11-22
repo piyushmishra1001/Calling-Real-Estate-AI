@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { DeleteButton } from "@/components/delete-button";
 import { ActionForm } from "@/components/simple-form";
 import { Badge, Card, PageHeader, btnDanger, btnGhost, input, label, pretty } from "@/components/ui";
 import { PLAN_PRESETS } from "@/lib/plans";
@@ -31,7 +32,7 @@ export default async function PartnersPage() {
           const members = (profiles ?? []).filter((p) => p.org_id === o.id);
           const admins = members.filter((m) => m.role === "partner_admin");
           return (
-            <Card key={o.id} title={o.name} action={<Badge tone={o.status === "active" ? "green" : "red"}>{pretty(o.status)}</Badge>}>
+            <Card key={o.id} title={o.name} action={<div className="flex items-center gap-2"><Badge tone={o.status === "active" ? "green" : "red"}>{pretty(o.status)}</Badge><DeleteButton action={deletePartner} id={o.id} label="Delete partner" confirm={`Delete ${o.name}? All its leads, users and call records will be removed permanently.`} /></div>}>
               <p className="mb-3 text-xs text-slate-500">{members.filter((m) => m.is_active).length} active users · Admin: {admins.map((a) => a.email).join(", ") || "not yet accepted"}</p>
               {e && (
                 <ActionForm action={updateEntitlements} submit="Save limits" className="grid gap-3 sm:grid-cols-5 sm:items-end">
@@ -47,20 +48,6 @@ export default async function PartnersPage() {
                   {o.status === "active" ? <button name="status" value="suspended" className={btnDanger}>Suspend</button> : <button name="status" value="active" className={btnGhost}>Reactivate</button>}</form>
                 <ActionForm action={reinvitePartnerAdmin} submit="Invite admin" className="flex items-center gap-2"><input type="hidden" name="org_id" value={o.id} /><input name="email" type="email" placeholder="admin@partner.com" className={input + " w-56"} /></ActionForm>
               </div>
-              <details className="mt-3 rounded-[10px] border border-[var(--state-error-light)] bg-[var(--state-error-lighter)] px-4 py-3">
-                <summary className="cursor-pointer text-sm font-medium text-[var(--state-error-base)]">Delete this partner permanently</summary>
-                <p className="mt-2 text-sm text-slate-700">
-                  This removes the partner, all of its leads, notes, visits, campaigns and call records, and every login account in it. It cannot be undone.
-                  The email addresses can be invited again afterwards. To pause access without losing data, use Suspend instead.
-                </p>
-                <ActionForm action={deletePartner} submit="Delete permanently" className="mt-3 flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="org_id" value={o.id} />
-                  <div className="min-w-[16rem] flex-1">
-                    <label className={label}>Type <span className="font-semibold">{o.name}</span> to confirm</label>
-                    <input name="confirm" autoComplete="off" required className={input} />
-                  </div>
-                </ActionForm>
-              </details>
             </Card>
           );
         })}
