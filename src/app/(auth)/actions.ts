@@ -36,9 +36,15 @@ export async function requestPasswordReset(_: FormState, form: FormData): Promis
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   if (!EMAIL.test(email)) return { error: "Enter a valid email address." };
   const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(email, {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${await siteUrl()}/auth/callback?next=/reset-password`,
   });
+  if (error) {
+    // Supabase does not report unknown emails as errors, so showing real failures does not reveal which accounts exist.
+    console.error(`[auth] password reset failed: status=${error.status} code=${error.code} message=${error.message}`);
+    if (error.status === 429 || error.code === "over_email_send_rate_limit") return { error: "Too many reset emails were requested. Wait a few minutes and try again." };
+    return { error: "We could not send the email right now. The email service may be misconfigured; please contact support." };
+  }
   // Identical response whether or not the account exists.
   return { message: "If an account exists for that email, a reset link is on its way." };
 }
