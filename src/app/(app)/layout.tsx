@@ -47,7 +47,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
           {links.map((l) => (
-            <Link key={l.href} href={l.href} className="flex items-center gap-2.5 whitespace-nowrap rounded-[10px] px-3 py-2 text-sm font-medium text-[var(--text-body)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--text-title)]">
+            <Link key={l.href} href={l.href} prefetch={false} className="flex items-center gap-2.5 whitespace-nowrap rounded-[10px] px-3 py-2 text-sm font-medium text-[var(--text-body)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--text-title)]">
               <i className={`${l.icon} text-[18px] text-[var(--text-soft-400)]`} aria-hidden="true" />
               {l.label}
             </Link>
