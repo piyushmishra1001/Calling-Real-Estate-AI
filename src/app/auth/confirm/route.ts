@@ -14,7 +14,9 @@ export async function GET(request: NextRequest) {
   const next = safeNextPath(searchParams.get("next"), isSetPassword ? "/reset-password" : "/dashboard");
 
   if (!tokenHash || !type || !TYPES.includes(type)) {
-    return NextResponse.redirect(`${origin}/login?error=invalid-link`);
+    // Supabase's standard email link carries its token in the URL fragment, which a server cannot read.
+    // Hand over to the browser page that can; the browser keeps the fragment across this redirect.
+    return NextResponse.redirect(`${origin}/auth/callback${new URL(request.url).search}`);
   }
   const supabase = await createClient();
   const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });

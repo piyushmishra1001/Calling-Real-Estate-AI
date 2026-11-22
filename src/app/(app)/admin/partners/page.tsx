@@ -34,7 +34,7 @@ export default async function PartnersPage() {
             <Card key={o.id} title={o.name} action={<Badge tone={o.status === "active" ? "green" : "red"}>{pretty(o.status)}</Badge>}>
               <p className="mb-3 text-xs text-slate-500">{members.filter((m) => m.is_active).length} active users · Admin: {admins.map((a) => a.email).join(", ") || "not yet accepted"}</p>
               {e && (
-                <ActionForm action={updateEntitlements} submit="Save limits" className="grid gap-3 sm:grid-cols-6 sm:items-end">
+                <ActionForm action={updateEntitlements} submit="Save limits" className="grid gap-3 sm:grid-cols-5 sm:items-end">
                   <input type="hidden" name="org_id" value={o.id} />
                   <div><label className={label}>Plan</label><select name="plan" defaultValue={e.plan} className={input}>{Object.entries(PLAN_PRESETS).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}</select></div>
                   <div><label className={label}>Monthly minutes</label><input name="monthly_minute_limit" type="number" min={0} defaultValue={e.monthly_minute_limit} className={input} /></div>

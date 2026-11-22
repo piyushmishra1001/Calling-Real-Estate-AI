@@ -37,7 +37,7 @@ export async function requestPasswordReset(_: FormState, form: FormData): Promis
   if (!EMAIL.test(email)) return { error: "Enter a valid email address." };
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${await siteUrl()}/auth/confirm?next=/reset-password`,
+    redirectTo: `${await siteUrl()}/auth/callback?next=/reset-password`,
   });
   // Identical response whether or not the account exists.
   return { message: "If an account exists for that email, a reset link is on its way." };

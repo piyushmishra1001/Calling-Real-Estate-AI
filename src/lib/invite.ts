@@ -39,7 +39,7 @@ export async function inviteUser(args: { orgId: string; email: string; role: "pa
   if (error || !inv) return { ok: false, error: error?.message ?? "Could not create the invitation." };
 
   const { error: mailError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${await siteUrl()}/auth/confirm?next=/reset-password`,
+    redirectTo: `${await siteUrl()}/auth/callback?next=/reset-password`,
   });
   if (mailError) {
     await admin.from("invitations").delete().eq("id", inv.id);

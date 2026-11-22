@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { getSession, type Role } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../(auth)/actions";
 import { Notice, btnGhost } from "@/components/ui";
+import { Nav } from "@/components/nav";
 
 const NAV: { href: string; label: string; icon: string; roles: Role[]; calling?: boolean }[] = [
   { href: "/dashboard", icon: "ri-dashboard-line", label: "Dashboard", roles: ["super_admin", "partner_admin", "partner_employee"] },
@@ -38,34 +38,32 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="border-b border-[var(--border-default)] bg-white md:w-60 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between px-4 py-4 md:block">
-          <div>
-            <div className="text-lg font-semibold tracking-tight text-[var(--brand)]">LeadPilot AI</div>
-            <div className="text-xs text-[var(--text-body)]">{session.orgName ?? "Platform"}</div>
-          </div>
+      <aside className="border-b border-[var(--border-default)] bg-white md:sticky md:top-0 md:flex md:h-screen md:w-64 md:shrink-0 md:flex-col md:border-b-0 md:border-r">
+        <div className="px-5 py-5">
+          <div className="text-lg font-semibold tracking-tight text-[var(--brand)]">LeadPilot AI</div>
+          <div className="mt-0.5 truncate text-xs text-[var(--text-body)]">{session.orgName ?? "Platform"}</div>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} prefetch={false} className="flex items-center gap-2.5 whitespace-nowrap rounded-[10px] px-3 py-2 text-sm font-medium text-[var(--text-body)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--text-title)]">
-              <i className={`${l.icon} text-[18px] text-[var(--text-soft-400)]`} aria-hidden="true" />
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="hidden border-t border-[var(--border-subtle)] p-4 text-xs text-slate-500 md:block">
-          <div className="truncate font-medium text-slate-700">{session.fullName ?? session.email}</div>
-          <div>{ROLE_LABEL[session.role]}</div>
+        <Nav items={links.map(({ href, label, icon }) => ({ href, label, icon }))} />
+        <div className="mt-auto hidden border-t border-[var(--border-subtle)] p-4 md:block">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-sm font-semibold text-[var(--brand)]" aria-hidden="true">
+              {(session.fullName ?? session.email).trim().charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-[var(--text-title)]">{session.fullName ?? session.email}</div>
+              <div className="text-xs text-[var(--text-body)]">{ROLE_LABEL[session.role]}</div>
+            </div>
+          </div>
           <form action={signOut} className="mt-3"><button className={btnGhost + " w-full"}>Sign out</button></form>
         </div>
       </aside>
-      <main className="flex-1 px-4 py-6 md:px-8">
+      <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-8"><div className="mx-auto w-full max-w-[1216px]">
         {settings?.calling_kill_switch && (
           <div className="mb-4"><Notice tone="red">Calling is paused platform-wide by LeadPilot. No AI calls will be placed until it is lifted.</Notice></div>
         )}
         {children}
         <form action={signOut} className="mt-8 md:hidden"><button className={btnGhost}>Sign out</button></form>
-      </main>
+      </div></main>
     </div>
   );
 }

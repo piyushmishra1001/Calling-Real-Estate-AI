@@ -18,9 +18,9 @@ export function ActionForm({
   return (
     <form action={formAction} className={className}>
       {children}
-      {state?.error && <Notice tone="red">{state.error}</Notice>}
-      {state?.message && <Notice tone="green">{state.message}</Notice>}
-      <button className={btn} disabled={pending}>{pending ? "Please wait…" : submit}</button>
+      {state?.error && <div className="col-span-full"><Notice tone="red">{state.error}</Notice></div>}
+      {state?.message && <div className="col-span-full"><Notice tone="green">{state.message}</Notice></div>}
+      <div className="col-span-full sm:col-auto"><button className={btn} disabled={pending}>{pending ? "Please wait…" : submit}</button></div>
     </form>
   );
 }

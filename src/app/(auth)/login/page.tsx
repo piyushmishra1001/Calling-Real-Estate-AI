@@ -6,6 +6,7 @@ import { safeNextPath } from "@/lib/safe-redirect";
 
 const MESSAGES: Record<string, string> = {
   "invalid-link": "That link is invalid. Request a new one.",
+  "expired-link": "That link has expired or was already used. Ask for a new invitation or reset link.",
   "no-access": "Your account has no access. It may be suspended or not yet invited.",
 };
 
