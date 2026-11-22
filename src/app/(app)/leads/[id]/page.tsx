@@ -65,12 +65,17 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
             </dl>
           </Card>
 
-          <Card title="Edit details">
-            <ActionForm action={updateLeadDetails} submit="Save details" className="space-y-3">
-              <input type="hidden" name="id" value={id} />
-              <LeadFields values={lead} />
-            </ActionForm>
-          </Card>
+          <details className="group rounded-2xl border border-[var(--border-default)] bg-white shadow-[var(--shadow-xs)]">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 text-sm font-semibold text-slate-800">
+              Edit details <i className="ri-arrow-down-s-line text-lg text-slate-500 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-[var(--border-subtle)] p-5">
+              <ActionForm action={updateLeadDetails} submit="Save details" className="space-y-3">
+                <input type="hidden" name="id" value={id} />
+                <LeadFields values={lead} />
+              </ActionForm>
+            </div>
+          </details>
 
           <Card title="Update lead">
             {locked ? (
@@ -94,7 +99,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
             )}
           </Card>
 
-          <Card title="Call history">
+          {(calls ?? []).length > 0 && <Card title="Call history">
             {(calls ?? []).length === 0 ? <Empty>No calls yet.</Empty> : (
               <ul className="space-y-3">
                 {calls!.map((c) => (
@@ -109,7 +114,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                 ))}
               </ul>
             )}
-          </Card>
+          </Card>}
 
           <Card title="Activity">
             <form action={addNote} className="mb-4 flex gap-2"><input type="hidden" name="id" value={id} /><input name="note" placeholder="Add a note…" className={input} /><button className={btn}>Add</button></form>
@@ -141,15 +146,14 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                   <Badge tone={BAND_TONE[score.band]}>{BAND_LABEL[score.band]}</Badge>
                 </div>
                 {score.nextAction && <p className="mt-2 rounded-[10px] bg-[var(--brand-soft)] px-3 py-2 text-sm text-[var(--brand)]">Next: {score.nextAction}</p>}
-                <ul className="mt-3 space-y-2 text-xs">
+                <details className="mt-3"><summary className="cursor-pointer text-sm font-medium text-[var(--brand-accent)]">How is this calculated?</summary><ul className="mt-3 space-y-2 text-xs">
                   {score.reasons.map((r) => (
                     <li key={r.label}>
                       <div className="flex justify-between text-slate-600"><span>{r.label}</span><span className="figure">{r.points}/{r.max}</span></div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-sunken)]"><div className="h-full rounded-full bg-[var(--brand)]" style={{ width: `${(r.points / r.max) * 100}%` }} /></div>
                     </li>
                   ))}
-                </ul>
-                <p className="mt-3 text-xs text-slate-500">Rule-based guide for prioritising. It is not a prediction.</p>
+                </ul><p className="mt-3 text-xs text-slate-500">A rule-based guide for prioritising. It is not a prediction.</p></details>
               </>
             )}
           </Card>
@@ -184,10 +188,11 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               <button className={btnGhost}>Schedule callback</button></form>
           </Card>
           {lead.status !== "do_not_contact" && (
-            <Card title="Do not contact">
-              <p className="mb-2 text-xs text-slate-600">Customer asked not to be called. This stops all future calls to this number and cannot be undone here.</p>
-              <form action={recordOptOut}><input type="hidden" name="id" value={id} /><button className={btnDanger}>Record opt-out</button></form>
-            </Card>
+            <details className="rounded-2xl border border-[var(--border-default)] bg-white px-5 py-3.5 shadow-[var(--shadow-xs)]">
+              <summary className="cursor-pointer text-sm font-medium text-slate-600">Customer asked not to be contacted?</summary>
+              <p className="my-3 text-sm text-slate-600">This stops all future calls to this number and cannot be undone here.</p>
+              <form action={recordOptOut}><input type="hidden" name="id" value={id} /><button className={btnDanger}>Mark as do not contact</button></form>
+            </details>
           )}
         </div>
       </div>

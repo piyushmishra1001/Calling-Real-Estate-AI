@@ -4,6 +4,36 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge, Card, Empty, Notice, PageHeader, Stat, LEAD_TONE, pretty } from "@/components/ui";
 import { dt, inr, num, pct } from "@/lib/format";
 import { costPerAttendedVisit } from "@/lib/voice/cost";
+import { loadInsights } from "@/lib/insights/load";
+import { BAND_LABEL, BAND_TONE } from "@/lib/insights/score";
+
+/** The short list a salesperson should act on today: highest-scoring leads that have a clear next step. */
+async function DoNext() {
+  const supabase = await createClient();
+  const ins = await loadInsights(supabase);
+  const rows = ins?.needsAttention.slice(0, 6) ?? [];
+  return (
+    <Card title="Do these next" action={<Link href="/insights" className="text-sm font-medium text-[var(--brand-accent)]">See all insights</Link>}>
+      {rows.length === 0 ? (
+        <Empty>{ins && ins.total > 0 ? "You're all caught up." : "Add or import leads and your priorities will appear here."}</Empty>
+      ) : (
+        <ul className="divide-y divide-[var(--border-subtle)]">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <Link href={`/leads/${r.id}`} className="flex items-center justify-between gap-3 py-3 hover:opacity-80">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-[var(--text-title)]">{r.name}</span>
+                  <span className="block truncate text-sm text-slate-600">{r.result.nextAction}</span>
+                </span>
+                <Badge tone={BAND_TONE[r.result.band]}>{BAND_LABEL[r.result.band]}</Badge>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
 
 export default async function DashboardPage() {
   const s = await requireRole("super_admin", "partner_admin", "partner_employee");
@@ -74,20 +104,25 @@ async function PartnerDashboard({ orgId, calling }: { orgId: string; calling: bo
 
   return (
     <>
-      <PageHeader title="Dashboard" />
+      <PageHeader title="Dashboard" subtitle="What needs your attention today." />
       {level === 100 && <div className="mb-4"><Notice tone="red">You have used 100% of this month&apos;s AI minutes. Campaigns are paused. Ask LeadPilot to upgrade your plan.</Notice></div>}
       {level === 85 && <div className="mb-4"><Notice tone="amber">85% of this month&apos;s AI minutes used.</Notice></div>}
       {level === 70 && <div className="mb-4"><Notice tone="amber">70% of this month&apos;s AI minutes used.</Notice></div>}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Total leads" value={num(st.leads_total)} hint={`${st.leads_new} new`} />
-        {calling && <Stat label="Eligible to call" value={num(st.leads_eligible)} hint="Consent recorded, not opted out" />}
-        {calling && <Stat label="Calls attempted" value={num(st.calls_attempted)} />}
-        {calling && <Stat label="Calls connected" value={num(st.calls_connected)} hint={pct(st.calls_connected, st.calls_attempted)} />}
-        <Stat label="Interested leads" value={num(st.leads_interested)} />
+        <Stat label="Total leads" value={num(st.leads_total)} />
+        <Stat label="New, not contacted" value={num(st.leads_new)} />
+        <Stat label="Interested" value={num(st.leads_interested)} />
         <Stat label="Callbacks open" value={num(st.callbacks_open)} />
-        <Stat label="Visits requested" value={num(st.visits_requested)} />
-        <Stat label="Visits confirmed / attended" value={`${st.visits_confirmed} / ${st.visits_attended}`} />
       </div>
+      {calling && (
+        <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Stat label="Eligible to call" value={num(st.leads_eligible)} hint="Consent recorded, not opted out" />
+          <Stat label="Calls attempted" value={num(st.calls_attempted)} />
+          <Stat label="Calls connected" value={num(st.calls_connected)} hint={pct(st.calls_connected, st.calls_attempted)} />
+          <Stat label="Visits confirmed / attended" value={`${st.visits_confirmed} / ${st.visits_attended}`} />
+        </div>
+      )}
+      <div className="mt-6"><DoNext /></div>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {calling && <Card title="AI usage this month">
           {limit > 0 ? (
@@ -97,11 +132,6 @@ async function PartnerDashboard({ orgId, calling }: { orgId: string; calling: bo
             </>
           ) : <p className="text-sm text-slate-600">Your plan includes no AI calling minutes.</p>}
         </Card>}
-        {!calling && (
-          <Card title="Lead insights" action={<Link href="/insights" className="text-xs text-indigo-600">Open</Link>}>
-            <p className="text-sm text-[var(--text-body)]">See which leads are hot, where follow-ups are overdue, and which sources convert.</p>
-          </Card>
-        )}
         <Card title="Employee performance">
           {byEmployee.size === 0 ? <Empty>No assigned leads yet.</Empty> : (
             <table className="w-full text-sm">
@@ -151,6 +181,7 @@ async function EmployeeDashboard({ userId }: { userId: string }) {
         <Stat label="Interested" value={num(counts.get("interested") ?? 0)} />
         <Stat label="Open callbacks" value={num((tasks ?? []).length)} />
       </div>
+      <div className="mt-6"><DoNext /></div>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card title="Callbacks due" action={<Link href="/tasks" className="text-xs text-indigo-600">All</Link>}>
           {(tasks ?? []).length === 0 ? <Empty>Nothing due.</Empty> : (

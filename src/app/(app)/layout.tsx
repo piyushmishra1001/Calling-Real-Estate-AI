@@ -8,10 +8,10 @@ import { Nav } from "@/components/nav";
 
 const NAV: { href: string; label: string; icon: string; roles: Role[]; calling?: boolean }[] = [
   { href: "/dashboard", icon: "ri-dashboard-line", label: "Dashboard", roles: ["super_admin", "partner_admin", "partner_employee"] },
-  { href: "/insights", icon: "ri-bar-chart-2-line", label: "Insights", roles: ["partner_admin", "partner_employee"] },
   { href: "/leads", icon: "ri-user-search-line", label: "Leads", roles: ["partner_admin", "partner_employee"] },
+  { href: "/insights", icon: "ri-bar-chart-2-line", label: "Insights", roles: ["partner_admin", "partner_employee"] },
   { href: "/visits", icon: "ri-map-pin-time-line", label: "Site visits", roles: ["partner_admin", "partner_employee"] },
-  { href: "/tasks", icon: "ri-phone-line", label: "Callbacks", roles: ["partner_admin", "partner_employee"] },
+  { href: "/tasks", icon: "ri-phone-line", label: "Follow-ups", roles: ["partner_admin", "partner_employee"] },
   { href: "/projects", icon: "ri-building-line", label: "Projects", roles: ["partner_admin", "partner_employee"] },
   { href: "/campaigns", icon: "ri-megaphone-line", label: "Campaigns", roles: ["partner_admin"], calling: true },
   { href: "/team", icon: "ri-team-line", label: "Team", roles: ["partner_admin"] },

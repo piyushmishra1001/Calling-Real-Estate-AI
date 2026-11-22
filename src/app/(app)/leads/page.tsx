@@ -86,7 +86,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <form action={bulkAssign}>
           {isAdmin && (
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-slate-600">With selected:</span>
+              <span className="text-slate-600">For selected leads:</span>
               <select name="assigned_to" className={input + " max-w-[13rem]"}>
                 <option value="">Unassign</option>
                 {(employees ?? []).map((e) => <option key={e.id} value={e.id}>Assign to {e.full_name ?? e.email}</option>)}
@@ -96,22 +96,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-slate-500">{isAdmin && <th className="w-8 pb-2" />}<th className="pb-2">Name</th><th>Score</th><th>Phone</th><th>Project</th><th>Status</th><th>Consent</th><th>Owner</th><th>Follow-up</th></tr></thead>
+              <thead><tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">{isAdmin && <th className="w-8 pb-3" />}<th className="pb-3">Lead</th><th className="pb-3">Priority</th><th className="pb-3">Status</th><th className="pb-3">Owner</th><th className="pb-3">Follow-up</th></tr></thead>
               <tbody>
                 {leads!.map((l) => {
-                  const proj = Array.isArray(l.projects) ? l.projects[0] : l.projects;
                   const owner = Array.isArray(l.profiles) ? l.profiles[0] : l.profiles;
+                  const r = scoreOf(l);
                   return (
-                    <tr key={l.id} className="border-t border-slate-100">
-                      {isAdmin && <td className="py-2"><input type="checkbox" name="ids" value={l.id} aria-label={`Select ${l.name}`} /></td>}
-                      <td className="py-2"><Link href={`/leads/${l.id}`} className="font-medium text-indigo-700">{l.name}</Link></td>
-                      <td>{(() => { const r = scoreOf(l); return r.band === "excluded" ? <span className="text-slate-400">—</span> : <span title={r.reasons.map((x) => `${x.label}: ${x.points}/${x.max}`).join("\n")}><Badge tone={BAND_TONE[r.band]}>{BAND_LABEL[r.band]} {r.score}</Badge></span>; })()}</td>
-                      <td className="text-slate-600">{l.phone}</td>
-                      <td>{proj?.name}</td>
-                      <td><Badge tone={LEAD_TONE[l.status] ?? "slate"}>{pretty(l.status)}</Badge></td>
-                      <td><Badge tone={l.consent_status === "granted" ? "green" : l.consent_status === "denied" ? "red" : "amber"}>{pretty(l.consent_status)}</Badge></td>
-                      <td className="text-slate-600">{owner?.full_name ?? owner?.email ?? "Unassigned"}</td>
-                      <td className="text-slate-600">{dt(l.next_follow_up_at)}</td>
+                    <tr key={l.id} className="border-t border-[var(--border-subtle)] hover:bg-[var(--surface-sunken)]">
+                      {isAdmin && <td className="py-3 pr-2"><input type="checkbox" name="ids" value={l.id} aria-label={`Select ${l.name}`} /></td>}
+                      <td className="py-3 pr-4"><Link href={`/leads/${l.id}`} className="block font-medium text-[var(--text-title)] hover:text-[var(--brand-accent)]">{l.name}</Link><span className="text-xs text-slate-500">{l.phone}</span></td>
+                      <td className="py-3 pr-4">{r.band === "excluded" ? <span className="text-slate-400">—</span> : <span title={r.reasons.map((x) => `${x.label}: ${x.points}/${x.max}`).join("\n")}><Badge tone={BAND_TONE[r.band]}>{BAND_LABEL[r.band]}</Badge></span>}</td>
+                      <td className="py-3 pr-4"><Badge tone={LEAD_TONE[l.status] ?? "slate"}>{pretty(l.status)}</Badge></td>
+                      <td className="py-3 pr-4 text-slate-600">{owner?.full_name ?? owner?.email ?? "Unassigned"}</td>
+                      <td className="py-3 text-slate-600">{dt(l.next_follow_up_at)}</td>
                     </tr>
                   );
                 })}
