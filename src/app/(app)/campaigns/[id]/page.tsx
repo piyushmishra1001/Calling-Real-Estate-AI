@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireRole } from "@/lib/auth";
+import { requireCalling } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Card, Notice, PageHeader, Stat, btn, btnDanger, btnGhost, pretty } from "@/components/ui";
 import { inr, num, pct } from "@/lib/format";
@@ -9,7 +9,7 @@ import { setCampaignStatus, startCampaign } from "../actions";
 export default async function CampaignPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ [k: string]: string | string[] | undefined }> }) {
   const { id } = await params;
   const sp = await searchParams;
-  await requireRole("partner_admin");
+  await requireCalling("partner_admin");
   const supabase = await createClient();
   const { data: c } = await supabase.from("campaigns").select("*, projects(name)").eq("id", id).maybeSingle();
   if (!c) notFound();

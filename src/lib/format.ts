@@ -13,3 +13,5 @@ export const dt = (iso: string | null | undefined) =>
 export const istToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 export const isPast = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() < Date.now() : false);
+
+export const daysAgoIso = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();

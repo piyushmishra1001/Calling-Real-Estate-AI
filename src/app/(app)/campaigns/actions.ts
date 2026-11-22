@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { audit, requireRole } from "@/lib/auth";
+import { audit, requireCalling } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { evaluateCampaignStart, validateWindow } from "@/lib/campaign-safety";
 
 export type CampaignState = { error?: string; message?: string; blockers?: string[] } | undefined;
 
 export async function createCampaign(_: CampaignState, form: FormData): Promise<CampaignState> {
-  const s = await requireRole("partner_admin");
+  const s = await requireCalling("partner_admin");
   const name = String(form.get("name") ?? "").trim();
   const projectId = String(form.get("project_id") ?? "");
   const start = String(form.get("window_start") ?? "10:00");
@@ -34,7 +34,7 @@ export async function createCampaign(_: CampaignState, form: FormData): Promise<
 
 /** Runs every pre-start safety check on the server. Nothing here places a call. */
 export async function startCampaign(form: FormData) {
-  const s = await requireRole("partner_admin");
+  const s = await requireCalling("partner_admin");
   const id = String(form.get("id"));
   const supabase = await createClient();
   const { data: c } = await supabase.from("campaigns").select("*").eq("id", id).maybeSingle();
@@ -78,7 +78,7 @@ export async function startCampaign(form: FormData) {
 }
 
 export async function setCampaignStatus(form: FormData) {
-  const s = await requireRole("partner_admin");
+  const s = await requireCalling("partner_admin");
   const id = String(form.get("id"));
   const to = String(form.get("to"));
   if (!["paused", "running", "stopped"].includes(to)) return;

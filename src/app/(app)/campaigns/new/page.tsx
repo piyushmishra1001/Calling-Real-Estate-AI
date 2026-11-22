@@ -1,11 +1,11 @@
-import { requireRole } from "@/lib/auth";
+import { requireCalling } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ActionForm } from "@/components/simple-form";
 import { Card, Notice, PageHeader, input, label } from "@/components/ui";
 import { createCampaign } from "../actions";
 
 export default async function NewCampaignPage() {
-  await requireRole("partner_admin");
+  await requireCalling("partner_admin");
   const supabase = await createClient();
   const { data: projects } = await supabase.from("projects").select("id, name").order("name");
   return (

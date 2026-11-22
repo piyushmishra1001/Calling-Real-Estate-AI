@@ -6,13 +6,14 @@ import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../(auth)/actions";
 import { Notice, btnGhost } from "@/components/ui";
 
-const NAV: { href: string; label: string; icon: string; roles: Role[] }[] = [
+const NAV: { href: string; label: string; icon: string; roles: Role[]; calling?: boolean }[] = [
   { href: "/dashboard", icon: "ri-dashboard-line", label: "Dashboard", roles: ["super_admin", "partner_admin", "partner_employee"] },
+  { href: "/insights", icon: "ri-bar-chart-2-line", label: "Insights", roles: ["partner_admin", "partner_employee"] },
   { href: "/leads", icon: "ri-user-search-line", label: "Leads", roles: ["partner_admin", "partner_employee"] },
   { href: "/visits", icon: "ri-map-pin-time-line", label: "Site visits", roles: ["partner_admin", "partner_employee"] },
   { href: "/tasks", icon: "ri-phone-line", label: "Callbacks", roles: ["partner_admin", "partner_employee"] },
   { href: "/projects", icon: "ri-building-line", label: "Projects", roles: ["partner_admin", "partner_employee"] },
-  { href: "/campaigns", icon: "ri-megaphone-line", label: "Campaigns", roles: ["partner_admin"] },
+  { href: "/campaigns", icon: "ri-megaphone-line", label: "Campaigns", roles: ["partner_admin"], calling: true },
   { href: "/team", icon: "ri-team-line", label: "Team", roles: ["partner_admin"] },
   { href: "/admin/partners", icon: "ri-community-line", label: "Partners", roles: ["super_admin"] },
   { href: "/admin/projects", icon: "ri-building-line", label: "Projects", roles: ["super_admin"] },
@@ -33,7 +34,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     supabase.from("platform_settings").select("calling_kill_switch").eq("id", 1).maybeSingle(),
   ]);
   if (!session) redirect("/login?reason=no-access");
-  const links = NAV.filter((n) => n.roles.includes(session.role));
+  const links = NAV.filter((n) => n.roles.includes(session.role) && (!n.calling || session.callingEnabled));
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">

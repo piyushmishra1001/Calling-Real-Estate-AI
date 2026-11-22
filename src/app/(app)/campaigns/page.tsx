@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/auth";
+import { requireCalling } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Card, Empty, PageHeader, btn, pretty } from "@/components/ui";
 import { dt } from "@/lib/format";
@@ -7,7 +7,7 @@ import { dt } from "@/lib/format";
 const TONE: Record<string, "green" | "amber" | "red" | "slate" | "blue"> = { draft: "slate", running: "green", paused: "amber", stopped: "red", completed: "blue" };
 
 export default async function CampaignsPage() {
-  await requireRole("partner_admin");
+  await requireCalling("partner_admin");
   const supabase = await createClient();
   const { data: campaigns } = await supabase.from("campaigns").select("id, name, status, created_at, projects(name)").order("created_at", { ascending: false });
   return (

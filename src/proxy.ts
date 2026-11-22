@@ -25,7 +25,9 @@ export async function proxy(request: NextRequest) {
 
   // getClaims() verifies the token signature (and refreshes it when expired) without a network round-trip
   // on every request. Server code re-checks the profile in the database on each page load.
+  const t0 = Date.now();
   const { data } = await supabase.auth.getClaims();
+  console.info(`[perf] proxy claims=${Date.now() - t0}ms path=${request.nextUrl.pathname}`);
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC.some((p) => path === p || path.startsWith(p + "/"));
 
