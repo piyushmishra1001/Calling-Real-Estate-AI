@@ -2,11 +2,12 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
 import { ActionForm } from "@/components/simple-form";
-import { Badge, Card, PageHeader, btnDanger, btnGhost, input, label, pretty } from "@/components/ui";
+import { Badge, Card, Notice, PageHeader, btnDanger, btnGhost, input, label, pretty } from "@/components/ui";
 import { PLAN_PRESETS } from "@/lib/plans";
 import { createPartner, deletePartner, reinvitePartnerAdmin, setPartnerStatus, updateEntitlements } from "../actions";
 
-export default async function PartnersPage() {
+export default async function PartnersPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error: pageError } = await searchParams;
   await requireRole("super_admin");
   const supabase = await createClient();
   const [{ data: orgs }, { data: ents }, { data: profiles }] = await Promise.all([
@@ -18,6 +19,7 @@ export default async function PartnersPage() {
   return (
     <>
       <PageHeader title="Partners" subtitle="Create partner organisations, set their limits and suspend access. Only you can change limits." />
+      {pageError && <div className="mb-4"><Notice tone="red">{pageError}</Notice></div>}
       <Card title="Add a partner">
         <ActionForm action={createPartner} submit="Create and invite" className="grid gap-3 sm:grid-cols-4 sm:items-end">
           <div><label className={label}>Partner name</label><input name="name" required className={input} /></div>

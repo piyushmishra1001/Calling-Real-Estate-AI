@@ -175,6 +175,8 @@ export async function decideKb(form: FormData) {
   revalidatePath("/admin/projects/[id]", "page");
 }
 
+const PARTNER_TABLES = ["calls", "campaign_leads", "site_visits", "callback_tasks", "lead_activities", "leads", "opt_outs", "campaigns", "invitations"] as const;
+
 /** Permanently deletes a partner: its data, its login accounts and the organisation. Super Admin only; the UI asks to confirm. */
 export async function deletePartner(form: FormData) {
   const s = await requireRole("super_admin");
@@ -184,16 +186,31 @@ export async function deletePartner(form: FormData) {
   if (!org) { revalidatePath("/admin/partners"); return; }
 
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc("delete_partner_data", { p_org: org.id });
-  if (error) throw new Error(`Could not delete this partner: ${error.message}`);
+  let userIds: string[] = [];
+  let failure: string | null = null;
+
+  // Preferred: one database function. Fallback: the same deletes, in order, so it works before migration 0006 is run.
+  const rpc = await admin.rpc("delete_partner_data", { p_org: org.id });
+  if (!rpc.error) {
+    userIds = (rpc.data as { user_ids?: string[] } | null)?.user_ids ?? [];
+  } else {
+    const { data: members } = await admin.from("profiles").select("id").eq("org_id", org.id);
+    userIds = (members ?? []).map((m) => m.id);
+    for (const t of PARTNER_TABLES) {
+      const { error } = await admin.from(t).delete().eq("org_id", org.id);
+      if (error) { failure = `${t}: ${error.message}`; break; }
+    }
+    if (!failure) {
+      const r1 = await admin.from("profiles").delete().eq("org_id", org.id);
+      const r2 = r1.error ? r1 : await admin.from("organizations").delete().eq("id", org.id);
+      if (r2.error) failure = r2.error.message;
+    }
+  }
+  if (failure) redirect(`/admin/partners?error=${encodeURIComponent("Could not delete this partner: " + failure)}`);
 
   // Remove the login accounts too, so the same emails can be invited again.
-  const userIds: string[] = (data as { user_ids?: string[] } | null)?.user_ids ?? [];
-  let failed = 0;
-  for (const uid of userIds) {
-    const { error: delErr } = await admin.auth.admin.deleteUser(uid);
-    if (delErr && !/not found/i.test(delErr.message)) failed++;
-  }
-  await audit(s, "partner.delete", "organization", org.id, { name: org.name, users_removed: userIds.length - failed, users_failed: failed });
+  for (const uid of userIds) await admin.auth.admin.deleteUser(uid);
+  await audit(s, "partner.delete", "organization", org.id, { name: org.name, users_removed: userIds.length });
   revalidatePath("/admin/partners");
+  redirect("/admin/partners");
 }
