@@ -174,3 +174,36 @@ export async function decideKb(form: FormData) {
   await supabase.rpc(decision === "approve" ? "approve_kb_version" : "reject_kb_version", { p_id: id });
   revalidatePath("/admin/projects/[id]", "page");
 }
+
+/**
+ * Permanently deletes a partner: its data, its login accounts, and the organisation itself.
+ * The Super Admin must type the partner's exact name. Because the login accounts are removed too,
+ * the same email addresses can be invited again afterwards.
+ */
+export async function deletePartner(_: AdminState, form: FormData): Promise<AdminState> {
+  const s = await requireRole("super_admin");
+  const id = String(form.get("org_id") ?? "");
+  const typed = String(form.get("confirm") ?? "").trim();
+
+  const supabase = await createClient();
+  const { data: org } = await supabase.from("organizations").select("id, name").eq("id", id).maybeSingle();
+  if (!org) return { error: "That partner no longer exists." };
+  if (typed !== org.name) return { error: `Type the partner's name exactly (“${org.name}”) to confirm.` };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("delete_partner_data", { p_org: org.id });
+  if (error) return { error: "Could not delete this partner. Nothing was removed." };
+
+  // Now remove the login accounts so the same emails can be invited again.
+  const userIds: string[] = (data as { user_ids?: string[] } | null)?.user_ids ?? [];
+  let failed = 0;
+  for (const uid of userIds) {
+    const { error: delErr } = await admin.auth.admin.deleteUser(uid);
+    if (delErr && !/not found/i.test(delErr.message)) failed++;
+  }
+
+  await audit(s, "partner.delete", "organization", org.id, { name: org.name, users_removed: userIds.length - failed, users_failed: failed });
+  revalidatePath("/admin/partners");
+  if (failed > 0) return { error: `${org.name} was deleted, but ${failed} login account(s) could not be removed. Remove them in Supabase → Authentication → Users so the email can be reused.` };
+  return { message: `${org.name} was deleted.` };
+}
