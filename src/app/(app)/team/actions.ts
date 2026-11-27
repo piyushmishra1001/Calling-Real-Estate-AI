@@ -17,10 +17,11 @@ export async function inviteEmployee(_: TeamState, form: FormData): Promise<Team
   if (ent && (used ?? 0) >= ent.seats) return { error: `Your plan includes ${ent.seats} seats and all are in use. Ask LeadPilot to upgrade.` };
 
   const email = String(form.get("email") ?? "");
-  const r = await inviteUser({ orgId: s.orgId!, email, role: "partner_employee", invitedBy: s.userId });
+  const r = await inviteUser({ orgId: s.orgId!, email, role: "partner_employee", invitedBy: s.userId, shareLinkIfEmailFails: true });
   if (!r.ok) return { error: r.error };
   await audit(s, "team.invite", "invitation", r.invitationId, { email, role: "partner_employee" });
   revalidatePath("/team");
+  if (r.link) return { message: `The email could not be sent, so send ${email} this invitation link yourself (it works once): ${r.link}` };
   return { message: `Invitation sent to ${email}.` };
 }
 
