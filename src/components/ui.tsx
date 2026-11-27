@@ -48,7 +48,7 @@ export function Badge({ children, tone = "slate" }: { children: ReactNode; tone?
 }
 
 export function Notice({ tone = "amber", children }: { tone?: "amber" | "red" | "green" | "blue"; children: ReactNode }) {
-  return <div className={`rounded-[10px] px-3.5 py-2.5 text-sm ring-1 ring-inset ${TONES[tone]}`}>{children}</div>;
+  return <div className={`rounded-[10px] px-3.5 py-2.5 text-sm [overflow-wrap:anywhere] ring-1 ring-inset ${TONES[tone]}`}>{children}</div>;
 }
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {

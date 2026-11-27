@@ -25,20 +25,22 @@ export async function createPartner(_: AdminState, form: FormData): Promise<Admi
   if (error || !org) return { error: error?.message ?? "Could not create the partner." };
   await supabase.from("org_entitlements").update({ plan, included_minutes: preset.minutes, seats: preset.seats, monthly_minute_limit: preset.minutes, daily_call_limit: preset.dailyCalls }).eq("org_id", org.id);
 
-  const r = await inviteUser({ orgId: org.id, email, role: "partner_admin", invitedBy: s.userId });
+  const r = await inviteUser({ orgId: org.id, email, role: "partner_admin", invitedBy: s.userId, shareLinkIfEmailFails: true });
   await audit(s, "partner.create", "organization", org.id, { name, plan, invited: r.ok });
   revalidatePath("/admin/partners");
   if (!r.ok) return { error: `Partner created, but the invitation failed: ${r.error} You can re-invite from the partner row.` };
+  if (r.link) return { message: `${name} created. The email could not be sent, so send ${email} this invitation link yourself (it works once): ${r.link}` };
   return { message: `${name} created and ${email} invited as Partner Admin.` };
 }
 
 export async function reinvitePartnerAdmin(_: AdminState, form: FormData): Promise<AdminState> {
   const s = await requireRole("super_admin");
   const orgId = String(form.get("org_id"));
-  const r = await inviteUser({ orgId, email: String(form.get("email") ?? ""), role: "partner_admin", invitedBy: s.userId });
+  const r = await inviteUser({ orgId, email: String(form.get("email") ?? ""), role: "partner_admin", invitedBy: s.userId, shareLinkIfEmailFails: true });
   if (!r.ok) return { error: r.error };
-  await audit(s, "partner.invite_admin", "organization", orgId);
+  await audit(s, "partner.invite_admin", "organization", orgId, { emailed: !r.link });
   revalidatePath("/admin/partners");
+  if (r.link) return { message: `The email could not be sent, so send them this invitation link yourself (it works once): ${r.link}` };
   return { message: "Invitation sent." };
 }
 

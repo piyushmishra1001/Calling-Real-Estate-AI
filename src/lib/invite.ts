@@ -13,14 +13,14 @@ export async function siteUrl() {
   return `${proto}://${host}`;
 }
 
-export type InviteResult = { ok: true; invitationId: string } | { ok: false; error: string };
+export type InviteResult = { ok: true; invitationId: string; link?: string; emailError?: string } | { ok: false; error: string };
 
 /**
  * Invitation-only onboarding. The invitation row is created FIRST (the database trigger reads it when
  * the auth user appears and derives org + role from it), then Supabase emails the link. If the email
  * cannot be sent, the invitation is removed so nothing dangles.
  */
-export async function inviteUser(args: { orgId: string; email: string; role: "partner_admin" | "partner_employee"; invitedBy: string }): Promise<InviteResult> {
+export async function inviteUser(args: { orgId: string; email: string; role: "partner_admin" | "partner_employee"; invitedBy: string; shareLinkIfEmailFails?: boolean }): Promise<InviteResult> {
   const email = args.email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter a valid email address." };
   const admin = createAdminClient();
@@ -56,6 +56,10 @@ export async function inviteUser(args: { orgId: string; email: string; role: "pa
       footer: "If you weren't expecting this invitation, you can ignore this email.",
     });
     const sent = await sendEmail({ to: email, subject: "You're invited to LeadPilot AI", ...mail });
+    if (!sent.ok && args.shareLinkIfEmailFails) {
+      // The login and invitation stay valid; the caller (a Super Admin) passes the link on by hand.
+      return { ok: true, invitationId: inv.id, link: url, emailError: sent.error };
+    }
     if (!sent.ok) {
       await admin.from("invitations").delete().eq("id", inv.id);
       if (link?.user?.id) await admin.auth.admin.deleteUser(link.user.id);
