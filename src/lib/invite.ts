@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { createAdminClient } from "./supabase/admin";
+import { actionEmail, emailConfigured, sendEmail } from "./email";
 
 export async function siteUrl() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;
@@ -38,9 +39,32 @@ export async function inviteUser(args: { orgId: string; email: string; role: "pa
     .single();
   if (error || !inv) return { ok: false, error: error?.message ?? "Could not create the invitation." };
 
-  const { error: mailError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${await siteUrl()}/auth/callback?next=/reset-password`,
-  });
+  const redirectTo = `${await siteUrl()}/auth/callback?next=/reset-password`;
+  if (emailConfigured()) {
+    // Create the login and its link ourselves, then send the email through our own provider.
+    const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: "invite", email, options: { redirectTo } });
+    const url = link?.properties?.action_link;
+    if (linkError || !url) {
+      await admin.from("invitations").delete().eq("id", inv.id);
+      return { ok: false, error: `Could not create the invitation: ${linkError?.message ?? "no link"}` };
+    }
+    const mail = actionEmail({
+      heading: "You've been invited to LeadPilot AI",
+      intro: "Set a password to finish creating your account.",
+      button: "Accept invitation",
+      url,
+      footer: "If you weren't expecting this invitation, you can ignore this email.",
+    });
+    const sent = await sendEmail({ to: email, subject: "You're invited to LeadPilot AI", ...mail });
+    if (!sent.ok) {
+      await admin.from("invitations").delete().eq("id", inv.id);
+      if (link?.user?.id) await admin.auth.admin.deleteUser(link.user.id);
+      return { ok: false, error: `Could not send the invitation: ${sent.error}` };
+    }
+    return { ok: true, invitationId: inv.id };
+  }
+
+  const { error: mailError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
   if (mailError) {
     await admin.from("invitations").delete().eq("id", inv.id);
     return { ok: false, error: `Could not send the invitation: ${mailError.message}` };

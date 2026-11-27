@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/safe-redirect";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { actionEmail, emailConfigured, sendEmail } from "@/lib/email";
 
 export type FormState = { error?: string; message?: string } | undefined;
 
@@ -35,6 +37,24 @@ export async function signIn(_: FormState, form: FormData): Promise<FormState> {
 export async function requestPasswordReset(_: FormState, form: FormData): Promise<FormState> {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   if (!EMAIL.test(email)) return { error: "Enter a valid email address." };
+  const redirectTo = `${await siteUrl()}/auth/callback?next=/reset-password`;
+  if (emailConfigured()) {
+    // generateLink fails for unknown emails; we answer identically either way so accounts are not revealed.
+    const { data, error: linkError } = await createAdminClient().auth.admin.generateLink({ type: "recovery", email, options: { redirectTo } });
+    const url = data?.properties?.action_link;
+    if (!linkError && url) {
+      const mail = actionEmail({
+        heading: "Reset your password",
+        intro: "Use the button below to choose a new password. The link works once and expires soon.",
+        button: "Choose a new password",
+        url,
+        footer: "If you didn't ask for this, you can ignore this email. Your password won't change.",
+      });
+      const sent = await sendEmail({ to: email, subject: "Reset your LeadPilot AI password", ...mail });
+      if (!sent.ok) return { error: `We could not send the email: ${sent.error}` };
+    }
+    return { message: "If an account exists for that email, a reset link is on its way." };
+  }
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${await siteUrl()}/auth/callback?next=/reset-password`,
