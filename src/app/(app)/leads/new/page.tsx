@@ -17,7 +17,7 @@ export default async function NewLeadPage() {
     <>
       <PageHeader title="Add lead" subtitle="Enter one enquiry by hand. For many at once, use Import CSV." actions={<Link href="/leads" className={btnGhost}>Back</Link>} />
       {(projects ?? []).length === 0 ? (
-        <Notice>No projects are assigned to your organisation yet. Ask LeadPilot to assign one.</Notice>
+        <Notice>Add a project first (Projects in the menu), then come back to add leads.</Notice>
       ) : (
         <Card>
           <ActionForm action={createLead} submit="Add lead" className="space-y-4">

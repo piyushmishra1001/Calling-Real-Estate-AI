@@ -14,7 +14,7 @@ export default async function ImportPage() {
     <>
       <PageHeader title="Import leads" subtitle="Upload a CSV of existing enquiries for one project." />
       {(projects ?? []).length === 0 ? (
-        <Notice>No projects are assigned to your organisation yet. Ask LeadPilot to assign one.</Notice>
+        <Notice>Add a project first (Projects in the menu), then come back to add leads.</Notice>
       ) : (
         <ImportForm projects={projects!} employees={(employees ?? []).map((e) => ({ id: e.id, name: e.full_name ?? e.email ?? e.id }))} />
       )}
