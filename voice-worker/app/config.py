@@ -21,7 +21,7 @@ class Settings:
     def from_env() -> "Settings":
         provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
         key_name = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}.get(provider, "ANTHROPIC_API_KEY")
-        default_model = {"anthropic": "claude-haiku-4-5", "openai": "gpt-4o-mini", "google": "gemini-2.5-flash"}.get(provider, "claude-haiku-4-5")
+        default_model = {"anthropic": "claude-haiku-4-5", "openai": "gpt-4o-mini", "google": "gemini-3.8-flash"}.get(provider, "claude-haiku-4-5")
         return Settings(
             worker_secret=os.environ.get("VOICE_WORKER_SECRET", ""),
             app_events_url=os.environ.get("APP_EVENTS_URL", ""),
@@ -29,7 +29,7 @@ class Settings:
             llm_provider=provider,
             llm_model=os.environ.get("LLM_MODEL", default_model),
             llm_api_key=os.environ.get(key_name, ""),
-            tts_voice=os.environ.get("SARVAM_TTS_VOICE", ""),
+            tts_voice=os.environ.get("SARVAM_TTS_VOICE", "ritu"),
             session_ttl_seconds=int(os.environ.get("SESSION_TTL_SECONDS", "300")),
             test_page_token=os.environ.get("TEST_PAGE_TOKEN", ""),
         )

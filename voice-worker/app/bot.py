@@ -24,6 +24,7 @@ from pipecat.processors.aggregators.llm_response_universal import LLMContextAggr
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.llm_service import FunctionCallParams
 from pipecat.services.sarvam.stt import SarvamSTTService
+from pipecat.transcriptions.language import Language
 from pipecat.services.sarvam.tts import SarvamTTSService
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
 
@@ -119,7 +120,9 @@ async def run_call(websocket, transport_type: str, call_data: Any, session: Call
         params=FastAPIWebsocketParams(audio_in_enabled=True, audio_out_enabled=True, add_wav_header=False,
                                       serializer=_serializer(transport_type, call_data)),
     )
-    stt = SarvamSTTService(api_key=settings.sarvam_api_key)
+    # Pin the recogniser to the call language; auto-detect misread Hindi as Gujarati in the first live test.
+    stt_lang = Language.HI if session.language.startswith("hi") else Language.EN_IN
+    stt = SarvamSTTService(api_key=settings.sarvam_api_key, settings=SarvamSTTService.Settings(language=stt_lang))
     tts_kwargs = {"voice_id": settings.tts_voice} if settings.tts_voice else {}
     tts = SarvamTTSService(api_key=settings.sarvam_api_key, **tts_kwargs)
     llm = _build_llm(settings)
