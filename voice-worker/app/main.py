@@ -67,7 +67,7 @@ async def telephony_ws(websocket: WebSocket, token: str = ""):
 
 
 # ---------------------------------------------------------------- browser test page (no phone provider needed)
-TEST_MAX_SECONDS = 300
+TEST_MAX_SECONDS = 180
 _test_lock = asyncio.Lock()
 
 
@@ -80,7 +80,7 @@ async def test_page():
 
 @app.websocket("/test/ws")
 async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN"):
-    """Talk to Riya from a browser. Needs TEST_PAGE_TOKEN, runs one call at a time, ends after five minutes."""
+    """Talk to Riya from a browser. Needs TEST_PAGE_TOKEN, runs one call at a time, ends after three minutes."""
     if not settings.test_page_token or not hmac.compare_digest(key.encode(), settings.test_page_token.encode()):
         await websocket.close(code=4401)
         return
@@ -100,6 +100,6 @@ async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN"):
                 timeout=TEST_MAX_SECONDS,
             )
         except asyncio.TimeoutError:
-            logger.info("Test call ended: five minute limit")
+            logger.info("Test call ended: three minute limit")
         except Exception:
             logger.exception("Test call failed")

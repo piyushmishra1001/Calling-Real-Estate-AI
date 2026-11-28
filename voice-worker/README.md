@@ -19,7 +19,7 @@ It is a separate always-on service (not part of the Vercel site): live calls nee
 ## Run
 
 ```
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 export VOICE_WORKER_SECRET=...   # same value as in the app (Vercel env VOICE_WORKER_SECRET)
 export APP_EVENTS_URL=https://calling-real-estate-ai.vercel.app/api/voice/events
 export SARVAM_API_KEY=...
@@ -42,7 +42,7 @@ TEST_PAGE_TOKEN=<a long random string you choose>
 
 - Local (Windows/Mac): install Python 3.11+, then `pip install -r requirements.txt`, set the variables, `uvicorn app.main:app --port 8080`, and open `http://localhost:8080/test?key=...`. The browser allows the microphone on localhost.
 - Hosted: deploy the `Dockerfile` to any host that gives you HTTPS and WebSockets (the microphone needs HTTPS). Hosting has not been tested yet.
-- Use headphones. The page is fictional ("Sunrise Heights" demo), saves nothing, allows one call at a time, and ends after five minutes. Without `TEST_PAGE_TOKEN` the page does not exist.
+- Use headphones. The page is fictional ("Sunrise Heights" demo), saves nothing, allows one call at a time, and ends after three minutes. Without `TEST_PAGE_TOKEN` the page does not exist.
 - This checks voice, language, response speed and the safety rules. It does not check real phone-line audio.
 
 The page's browser behaviour was tested in headless Chromium with a fake microphone against a stub server, not against a live Sarvam/LLM session.
@@ -53,3 +53,8 @@ The page's browser behaviour was tested in headless Chromium with a fake microph
 2. The carrier (Exotel/Plivo) connects its audio stream to `wss://<worker>/ws?token=...`.
 3. Riya says a fixed AI-disclosure opening line, then talks. Opt-outs etc. are caught by the guard before the model sees them.
 4. The worker reports `opt_out`, `callback_requested`, `visit_requested` and finally `call_ended` to the app. It never marks a visit confirmed.
+
+## Deploying to Vercel (for the browser test)
+
+Create a Vercel project from this GitHub repo with **Root Directory = `voice-worker`**. Set `SARVAM_API_KEY`, `LLM_PROVIDER`, the matching LLM key and `TEST_PAGE_TOKEN` as environment variables (Production), and `VERCEL_SUPPORT_LARGE_FUNCTIONS=1` (the speech/VAD libraries may exceed the standard 500 MB Python bundle).
+Hobby plans cap a function at 300 seconds, which is fine for 3-minute tests but not for real customer calls. A live-call service should run on an always-on host instead. Hosting on Vercel is untested until a deploy succeeds.
