@@ -99,3 +99,38 @@ def test_test_lock_blocks_a_second_call():
         async with main._test_lock:
             return main._test_lock.locked()
     assert asyncio.run(go()) is True
+
+
+def _client(monkeypatch, **over):
+    monkeypatch.setattr(main, "settings", settings(**over))
+    monkeypatch.setattr(main, "sessions", main.SessionStore(300))
+    return TestClient(main.app)
+
+
+def test_crm_token_is_single_use_and_unknown_token_refused(monkeypatch):
+    c = _client(monkeypatch)
+    sess = demo_session("en-IN")
+    main.sessions.put("tok", sess)
+    ran = {}
+
+    async def fake_run(ws, kind, data, session, st, **kw):
+        ran["session"] = session
+        ran["events"] = kw["events"]
+
+    monkeypatch.setattr(bot, "run_call", fake_run)
+    with c.websocket_connect("/test/ws?token=tok"):
+        pass
+    assert ran["session"].call_id == sess.call_id
+    assert type(ran["events"]).__name__ == "EventClient"  # reports to the CRM, unlike the demo's LogEvents
+    with pytest.raises(Exception):
+        with c.websocket_connect("/test/ws?token=tok"):
+            pass
+    with pytest.raises(Exception):
+        with c.websocket_connect("/test/ws?token=nope"):
+            pass
+
+
+def test_call_page_needs_token(monkeypatch):
+    c = _client(monkeypatch)
+    assert c.get("/test/call").status_code == 404
+    assert c.get("/test/call?token=x").status_code == 200

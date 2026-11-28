@@ -78,15 +78,37 @@ async def test_page():
     return FileResponse(Path(__file__).parent / "static" / "test.html")
 
 
+@app.get("/test/call")
+async def test_call_page(token: str = ""):
+    """Browser page for a call started from the CRM. The one-time token in the address is the credential."""
+    if not token:
+        raise HTTPException(404)
+    return FileResponse(Path(__file__).parent / "static" / "test.html")
+
+
 @app.websocket("/test/ws")
-async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN"):
-    """Talk to Riya from a browser. Needs TEST_PAGE_TOKEN, runs one call at a time, ends after three minutes."""
-    if not settings.test_page_token or not hmac.compare_digest(key.encode(), settings.test_page_token.encode()):
-        await websocket.close(code=4401)
-        return
-    if settings.missing_for_test():
-        await websocket.close(code=1011)
-        return
+async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN", token: str = ""):
+    """Talk to Riya from a browser, one call at a time, ending after three minutes.
+
+    With `token` (issued by POST /v1/calls from the CRM) the call uses that lead's real, approved project facts and
+    reports its result back to the CRM. With `key` (TEST_PAGE_TOKEN) it runs the fictional demo project and reports nothing.
+    """
+    session = None
+    if token:
+        session = sessions.take(token)  # single use
+        if session is None:
+            await websocket.close(code=4401)
+            return
+        if settings.missing():
+            await websocket.close(code=1011)
+            return
+    else:
+        if not settings.test_page_token or not hmac.compare_digest(key.encode(), settings.test_page_token.encode()):
+            await websocket.close(code=4401)
+            return
+        if settings.missing_for_test():
+            await websocket.close(code=1011)
+            return
     if _test_lock.locked():
         await websocket.close(code=4409)
         return
@@ -94,9 +116,16 @@ async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN"):
         await websocket.accept()
         from .bot import run_call
         from .browser import BROWSER_RATE, LogEvents, demo_session
+        from .events import EventClient
         try:
+            if session is not None:
+                events = EventClient(settings.app_events_url, settings.worker_secret)
+                call_session = session
+            else:
+                events = LogEvents()
+                call_session = demo_session(lang)
             await asyncio.wait_for(
-                run_call(websocket, "browser", {}, demo_session(lang), settings, sample_rate=BROWSER_RATE, events=LogEvents()),
+                run_call(websocket, "browser", {}, call_session, settings, sample_rate=BROWSER_RATE, events=events),
                 timeout=TEST_MAX_SECONDS,
             )
         except asyncio.TimeoutError:

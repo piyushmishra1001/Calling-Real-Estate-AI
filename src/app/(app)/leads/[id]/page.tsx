@@ -8,7 +8,7 @@ import { ActionForm } from "@/components/simple-form";
 import { LeadFields } from "@/components/lead-fields";
 import { BAND_LABEL, BAND_TONE, scoreLead, strongestVisitStatus } from "@/lib/insights/score";
 import { MANUAL_STATUSES } from "@/lib/lead-status";
-import { addNote, assignLead, createCallback, recordOptOut, requestVisit, updateLead, updateLeadDetails, deleteLead } from "../actions";
+import { addNote, assignLead, startTestCall, createCallback, recordOptOut, requestVisit, updateLead, updateLeadDetails, deleteLead } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
 
 type Line = { speaker: string; text: string };
@@ -180,6 +180,14 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               <button className={btnGhost}>Request visit</button>
               <p className="text-xs text-slate-500">A visit is only marked confirmed once a coordinator reserves the slot.</p></form>
           </Card>
+          {lead.status !== "do_not_contact" && (
+            <Card title="Talk to Riya (test)">
+              <form action={startTestCall} className="space-y-2"><input type="hidden" name="id" value={id} />
+                <select name="language" className={input} defaultValue="en-IN" aria-label="Language"><option value="en-IN">English</option><option value="hi-IN">Hindi</option></select>
+                <button className={btn}>Start test call</button>
+                <p className="text-xs text-slate-500">Runs in your browser with this project&apos;s approved facts. No phone call is placed. The result is saved on this lead.</p></form>
+            </Card>
+          )}
           <Card title="Callback">
             {(tasks ?? []).filter((t) => t.status === "open").map((t) => <div key={t.id} className="mb-2 text-sm">Due {dt(t.due_at)}{t.notes ? ` — ${t.notes}` : ""}</div>)}
             <form action={createCallback} className="space-y-2"><input type="hidden" name="id" value={id} />

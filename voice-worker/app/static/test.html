@@ -32,11 +32,13 @@
 </main>
 <script>
 const RATE = 16000;
-const key = new URLSearchParams(location.search).get("key") || "";
+const qs = new URLSearchParams(location.search);
+const key = qs.get("key") || "", callToken = qs.get("token") || "";
 const go = document.getElementById("go"), statusEl = document.getElementById("status");
 let ws, ctx, stream, node, playAt = 0, sources = [];
 
 function setStatus(t) { statusEl.textContent = t; }
+if (callToken) { document.getElementById("lang").style.display = "none"; document.querySelector("label[for=lang]").style.display = "none"; document.querySelector("h1").textContent = "Test call from your CRM"; document.querySelector("p").textContent = "Riya will speak using this lead's approved project facts. This is a browser test: no phone call is placed. Use headphones. The call ends after three minutes and its result is saved on the lead."; document.querySelector(".note").textContent = "Test call using real project facts. The result is recorded on the lead in your CRM."; }
 
 const workletCode = `
 class Capture extends AudioWorkletProcessor {
@@ -70,7 +72,7 @@ function play(payload) {
 function clearPlayback() { sources.forEach(s => { try { s.stop(); } catch (e) {} }); sources = []; playAt = 0; }
 
 async function start() {
-  if (!key) { setStatus("Missing test key in the address (?key=...)."); return; }
+  if (!key && !callToken) { setStatus("Missing test key in the address (?key=...)."); return; }
   go.disabled = true; setStatus("Asking for your microphone…");
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
@@ -80,7 +82,7 @@ async function start() {
   node = new AudioWorkletNode(ctx, "capture");
   ctx.createMediaStreamSource(stream).connect(node);
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${proto}://${location.host}/test/ws?key=${encodeURIComponent(key)}&lang=${document.getElementById("lang").value}`);
+  ws = new WebSocket(callToken ? `${proto}://${location.host}/test/ws?token=${encodeURIComponent(callToken)}` : `${proto}://${location.host}/test/ws?key=${encodeURIComponent(key)}&lang=${document.getElementById("lang").value}`);
   ws.onopen = () => {
     setStatus("Connected. Riya will speak first.");
     go.disabled = false; go.textContent = "End call"; go.className = "stop";
@@ -90,7 +92,7 @@ async function start() {
     const m = JSON.parse(e.data);
     if (m.event === "media") play(m.media.payload); else if (m.event === "clear") clearPlayback();
   };
-  ws.onclose = (e) => { stop(e.code === 4401 ? "Wrong test key." : e.code === 4409 ? "Another test call is in progress. Try again shortly." : e.code === 1011 ? "The worker is missing its API keys." : "Call ended."); };
+  ws.onclose = (e) => { stop(e.code === 4401 ? (callToken ? "This call link has expired or was already used. Start it again from the CRM." : "Wrong test key.") : e.code === 4409 ? "Another test call is in progress. Try again shortly." : e.code === 1011 ? "The worker is missing its API keys." : "Call ended."); };
   ws.onerror = () => setStatus("Could not connect.");
 }
 function stop(msg) {

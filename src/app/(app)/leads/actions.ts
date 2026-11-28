@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { signBody } from "@/lib/voice/worker-events";
 import { parseLeadCsv, type RejectedRow } from "@/lib/csv-import";
 import { MANUAL_STATUSES } from "@/lib/lead-status";
 import { parseLeadForm } from "@/lib/lead-input";
@@ -260,4 +262,70 @@ export async function deleteLead(form: FormData) {
   await audit(s, "lead.delete", "lead", id, { name: lead.name });
   revalidatePath("/leads");
   redirect("/leads");
+}
+
+
+const ENQUIRY = ["residential", "commercial"] as const;
+
+/**
+ * Starts a browser test call with Riya for one lead: no phone call is placed and nothing is dialled.
+ * It uses the project's APPROVED knowledge base, records a call row, hands the context to the voice worker
+ * (signed, single use), then opens the worker's call page. The worker reports the result back to /api/voice/events.
+ */
+export async function startTestCall(form: FormData) {
+  const s = await requireRole("partner_admin", "partner_employee");
+  const id = String(form.get("id") ?? "");
+  const language = form.get("language") === "hi-IN" ? "hi-IN" : "en-IN";
+  const back = (msg: string): never => redirect(`/leads/${id}?error=${encodeURIComponent(msg)}`);
+
+  const base = (process.env.VOICE_WORKER_URL ?? "").replace(/\/$/, "");
+  const secret = process.env.VOICE_WORKER_SECRET ?? "";
+  if (!base || !secret) back("Test calls are not set up yet: the voice worker address or secret is missing.");
+
+  const supabase = await createClient();
+  const { data: lead } = await supabase.from("leads").select("id, org_id, name, status, project_id, enquiry_type, preferred_config, projects(name)").eq("id", id).maybeSingle();
+  if (!lead) redirect("/leads");
+  if (lead.status === "do_not_contact") back("This lead asked not to be contacted, so no call can be started.");
+  const proj = Array.isArray(lead.projects) ? lead.projects[0] : lead.projects;
+
+  // RLS only returns approved versions to partners. No approved facts means Riya has nothing safe to say.
+  const { data: kb } = await supabase.from("project_kb_versions").select("facts, faqs").eq("project_id", lead.project_id).eq("status", "approved").maybeSingle();
+  if (!kb) back("This project has no approved knowledge base yet. Add and approve the project facts first.");
+
+  const asText = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
+  const facts = Object.fromEntries(Object.entries((kb!.facts ?? {}) as Record<string, unknown>).map(([k, v]) => [k, asText(v)]));
+  const faqs = Array.isArray(kb!.faqs) ? (kb!.faqs as { q?: unknown; a?: unknown }[]).filter((f) => f.q && f.a).map((f) => ({ q: asText(f.q), a: asText(f.a) })) : [];
+
+  const admin = createAdminClient();
+  const { data: call, error: callErr } = await admin.from("calls").insert({ org_id: lead.org_id, lead_id: lead.id, project_id: lead.project_id, provider: "browser_test", status: "initiated" }).select("id").single();
+  if (callErr || !call) back("Could not record the call. Try again.");
+
+  const session = {
+    call_id: call!.id, org_id: lead.org_id, lead_id: lead.id, project_id: lead.project_id,
+    customer_name: lead.name, company_name: s.orgName ?? "the company", project_name: proj?.name ?? "the project",
+    language, kb_status: "approved", facts, faqs,
+    enquiry_type: ENQUIRY.find((e) => e === lead.enquiry_type) ?? null, configuration: lead.preferred_config ?? null,
+  };
+  const body = JSON.stringify(session);
+  const ts = String(Math.floor(Date.now() / 1000));
+
+  let token = "";
+  let failure = "";
+  try {
+    const res = await fetch(`${base}/v1/calls`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-timestamp": ts, "x-signature": signBody(secret, ts, body) },
+      body, cache: "no-store", signal: AbortSignal.timeout(15_000),
+    });
+    if (res.ok) token = String(((await res.json()) as { token?: string }).token ?? "");
+    else failure = `The voice worker refused the call (${res.status}).`;
+  } catch {
+    failure = "The voice worker did not respond. Check that it is running.";
+  }
+  if (!token) {
+    await admin.from("calls").update({ status: "failed" }).eq("id", call!.id);
+    back(failure || "The voice worker did not return a call.");
+  }
+  await audit(s, "call.test_started", "lead", lead.id, { call_id: call!.id, language });
+  redirect(`${base}/test/call?token=${encodeURIComponent(token)}`);
 }

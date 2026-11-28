@@ -12,6 +12,11 @@ export function verifySignature(secret: string, timestamp: string, rawBody: stri
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/** Signs a request to the worker (same scheme the worker uses to verify). */
+export function signBody(secret: string, timestamp: string, rawBody: string) {
+  return createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
+}
+
 export function signForTest(secret: string, timestamp: string, rawBody: string) {
   return createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
 }
