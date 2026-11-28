@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Paths reachable without a session. Everything else requires sign-in. */
-const PUBLIC = ["/login", "/forgot-password", "/auth/callback", "/auth/confirm"];
+// /api/voice/events has no user session: the voice worker authenticates with an HMAC signature that the route verifies itself.
+const PUBLIC = ["/login", "/forgot-password", "/auth/callback", "/auth/confirm", "/api/voice/events"];
 
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
