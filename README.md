@@ -15,7 +15,8 @@ North-star metric: **cost per attended site visit.**
 | Campaigns | Built up to queueing. **No calls are placed**: there is no telephony adapter. |
 | Site visits | Built. Confirmation is **human only** (no calendar integration). |
 | Riya conversation engine | Built and unit-tested with in-memory doubles (rules-based, no LLM). |
-| Sarvam STT/TTS, LLM, Exotel/Plivo, calendar, WhatsApp | **Not implemented.** Only interfaces and test doubles exist. Nothing is "integrated". |
+| Voice worker (Pipecat + Sarvam STT/TTS + LLM, `voice-worker/`) and the signed `/api/voice/events` endpoint | **Built and unit-tested; no real call has been made.** See `voice-worker/README.md`. |
+| Exotel/Plivo outbound call placement, calendar, WhatsApp | **Not implemented.** Nothing is "integrated" until an end-to-end call succeeds. |
 | Voice cost target ($0.02/min) | **Not measured.** The accounting code exists; the target is not claimed until 100+ real calls. |
 | Deployment | Not deployed from this repo. |
 
