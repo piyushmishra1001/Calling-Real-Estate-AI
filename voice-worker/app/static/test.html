@@ -81,6 +81,9 @@ async function start() {
   await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletCode], { type: "application/javascript" })));
   node = new AudioWorkletNode(ctx, "capture");
   ctx.createMediaStreamSource(stream).connect(node);
+  const silent = ctx.createGain(); silent.gain.value = 0;
+  node.connect(silent).connect(ctx.destination);
+  await ctx.resume();
   const proto = location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(callToken ? `${proto}://${location.host}/test/ws?token=${encodeURIComponent(callToken)}` : `${proto}://${location.host}/test/ws?key=${encodeURIComponent(key)}&lang=${document.getElementById("lang").value}`);
   ws.onopen = () => {
@@ -92,7 +95,7 @@ async function start() {
     const m = JSON.parse(e.data);
     if (m.event === "media") play(m.media.payload); else if (m.event === "clear") clearPlayback();
   };
-  ws.onclose = (e) => { stop(e.code === 4401 ? (callToken ? "This call link has expired or was already used. Start it again from the CRM." : "Wrong test key.") : e.code === 4409 ? "Another test call is in progress. Try again shortly." : e.code === 1011 ? "The worker is missing its API keys." : "Call ended."); };
+  ws.onclose = (e) => { stop(e.code === 4401 ? (callToken ? "This call link has expired or was already used. Start it again from the CRM." : "Wrong test key.") : e.code === 4409 ? "Another test call is in progress. Try again shortly." : e.code === 1011 ? "The worker is missing its API keys." : e.code === 1006 ? "Connection failed (WebSocket handshake or network). Start a fresh test from the CRM; check worker hosting and logs." : "Call ended."); };
   ws.onerror = () => setStatus("Could not connect.");
 }
 function stop(msg) {
