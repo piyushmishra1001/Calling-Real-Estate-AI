@@ -97,9 +97,11 @@ async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN", toke
     if token:
         session = sessions.take(token)  # single use
         if session is None:
+            logger.warning("Browser test rejected: session missing, expired or already used")
             await websocket.close(code=4401)
             return
         if settings.missing():
+            logger.error("Browser test rejected: missing settings {}", ", ".join(settings.missing()))
             await websocket.close(code=1011)
             return
     else:
@@ -110,6 +112,7 @@ async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN", toke
             await websocket.close(code=1011)
             return
     if _test_lock.locked():
+        logger.warning("Browser test rejected: another test is active")
         await websocket.close(code=4409)
         return
     async with _test_lock:
