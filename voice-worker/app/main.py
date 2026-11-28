@@ -103,3 +103,24 @@ async def test_ws(websocket: WebSocket, key: str = "", lang: str = "en-IN"):
             logger.info("Test call ended: three minute limit")
         except Exception:
             logger.exception("Test call failed")
+
+
+@app.get("/test/sarvam-llm")
+async def test_sarvam_llm(key: str = ""):
+    """One chat call to Sarvam's model, using the key stored in this deployment. Same token as the test page."""
+    if not settings.test_page_token or not hmac.compare_digest(key.encode(), settings.test_page_token.encode()):
+        raise HTTPException(404)
+    if not settings.sarvam_api_key:
+        return {"ok": False, "error": "SARVAM_API_KEY is not set in this deployment."}
+    from sarvamai import SarvamAI
+
+    def call() -> str:
+        client = SarvamAI(api_subscription_key=settings.sarvam_api_key)
+        r = client.chat.completions(model="sarvam-105b-conversations",
+                                    messages=[{"role": "user", "content": "Say hello in one short sentence."}])
+        return r.choices[0].message.content
+
+    try:
+        return {"ok": True, "model": "sarvam-105b-conversations", "reply": await asyncio.to_thread(call)}
+    except Exception as e:  # report the failure type and message only, never the key
+        return {"ok": False, "error": f"{type(e).__name__}: {str(e)[:300]}"}
