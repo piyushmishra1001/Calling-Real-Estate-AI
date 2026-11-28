@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talk to Riya (test)</title>
+<style>
+  :root { --brand:#1e3a8a; --ink:#0e121b; --muted:#525866; --line:#e1e4ea; --bg:#f6f8fa; --ok:#16a34a; --bad:#dc2626; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Inter,system-ui,Arial,sans-serif; display:grid; place-items:center; min-height:100vh; padding:16px; }
+  main { width:100%; max-width:440px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:28px; }
+  h1 { font-size:20px; margin:0 0 6px; }
+  p { color:var(--muted); font-size:14px; line-height:1.5; margin:0 0 16px; }
+  label { display:block; font-size:13px; font-weight:500; margin-bottom:6px; }
+  select, button { font:inherit; border-radius:10px; }
+  select { width:100%; padding:10px 12px; border:1px solid var(--line); background:#fff; margin-bottom:16px; }
+  button { width:100%; padding:12px; border:0; background:var(--brand); color:#fff; font-weight:600; cursor:pointer; }
+  button.stop { background:var(--bad); }
+  #status { margin-top:16px; font-size:14px; min-height:20px; color:var(--muted); }
+  .note { margin-top:16px; font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Talk to Riya</h1>
+  <p>A test of the AI voice agent for a demo project. Use headphones so Riya doesn't hear herself. A test call ends after five minutes.</p>
+  <label for="lang">Language to start in</label>
+  <select id="lang"><option value="en-IN">English</option><option value="hi-IN">Hindi</option></select>
+  <button id="go">Start call</button>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div class="note">Demo project only. Nothing here is saved or sent to any customer.</div>
+</main>
+<script>
+const RATE = 16000;
+const key = new URLSearchParams(location.search).get("key") || "";
+const go = document.getElementById("go"), statusEl = document.getElementById("status");
+let ws, ctx, stream, node, playAt = 0, sources = [];
+
+function setStatus(t) { statusEl.textContent = t; }
+
+const workletCode = `
+class Capture extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = []; this.len = 0; }
+  process(inputs) {
+    const ch = inputs[0][0];
+    if (ch) { this.buf.push(new Float32Array(ch)); this.len += ch.length;
+      if (this.len >= 640) { // ~40 ms at 16 kHz
+        const out = new Float32Array(this.len); let o = 0;
+        for (const b of this.buf) { out.set(b, o); o += b.length; }
+        this.buf = []; this.len = 0;
+        const pcm = new Int16Array(out.length);
+        for (let i = 0; i < out.length; i++) { const v = Math.max(-1, Math.min(1, out[i])); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+        this.port.postMessage(pcm.buffer, [pcm.buffer]);
+      } }
+    return true;
+  }
+}
+registerProcessor("capture", Capture);`;
+
+function b64(buf) { let s = ""; const a = new Uint8Array(buf); for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); }
+
+function play(payload) {
+  const raw = atob(payload), n = raw.length / 2, f = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let v = raw.charCodeAt(2 * i) | (raw.charCodeAt(2 * i + 1) << 8); if (v >= 0x8000) v -= 0x10000; f[i] = v / 0x8000; }
+  const buf = ctx.createBuffer(1, n, RATE); buf.copyToChannel(f, 0);
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+  playAt = Math.max(playAt, ctx.currentTime + 0.05); src.start(playAt); playAt += buf.duration;
+  sources.push(src); src.onended = () => { sources = sources.filter(s => s !== src); };
+}
+function clearPlayback() { sources.forEach(s => { try { s.stop(); } catch (e) {} }); sources = []; playAt = 0; }
+
+async function start() {
+  if (!key) { setStatus("Missing test key in the address (?key=...)."); return; }
+  go.disabled = true; setStatus("Asking for your microphone…");
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+  } catch (e) { setStatus("Microphone blocked. Allow it in the browser and try again."); go.disabled = false; return; }
+  ctx = new AudioContext({ sampleRate: RATE });
+  await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletCode], { type: "application/javascript" })));
+  node = new AudioWorkletNode(ctx, "capture");
+  ctx.createMediaStreamSource(stream).connect(node);
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/test/ws?key=${encodeURIComponent(key)}&lang=${document.getElementById("lang").value}`);
+  ws.onopen = () => {
+    setStatus("Connected. Riya will speak first.");
+    go.disabled = false; go.textContent = "End call"; go.className = "stop";
+    node.port.onmessage = (e) => { if (ws.readyState === 1) ws.send(JSON.stringify({ event: "media", media: { payload: b64(e.data) } })); };
+  };
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.event === "media") play(m.media.payload); else if (m.event === "clear") clearPlayback();
+  };
+  ws.onclose = (e) => { stop(e.code === 4401 ? "Wrong test key." : e.code === 4409 ? "Another test call is in progress. Try again shortly." : e.code === 1011 ? "The worker is missing its API keys." : "Call ended."); };
+  ws.onerror = () => setStatus("Could not connect.");
+}
+function stop(msg) {
+  try { ws && ws.close(); } catch (e) {}
+  try { stream && stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { ctx && ctx.close(); } catch (e) {}
+  clearPlayback(); go.disabled = false; go.textContent = "Start call"; go.className = ""; setStatus(msg || "Call ended.");
+}
+go.onclick = () => (ws && ws.readyState <= 1) ? stop("Call ended.") : start();
+</script>
+</body>
+</html>

@@ -75,6 +75,9 @@ def _build_llm(settings: Settings):
     if settings.llm_provider == "openai":
         from pipecat.services.openai.llm import OpenAILLMService
         return OpenAILLMService(api_key=settings.llm_api_key, settings=OpenAILLMService.Settings(model=settings.llm_model))
+    if settings.llm_provider == "google":
+        from pipecat.services.google.llm import GoogleLLMService
+        return GoogleLLMService(api_key=settings.llm_api_key, settings=GoogleLLMService.Settings(model=settings.llm_model))
     from pipecat.services.anthropic.llm import AnthropicLLMService
     return AnthropicLLMService(api_key=settings.llm_api_key, settings=AnthropicLLMService.Settings(model=settings.llm_model))
 
@@ -86,6 +89,9 @@ def _serializer(transport_type: str, call_data: Any):
     if transport_type == "plivo":
         from pipecat.serializers.plivo import PlivoFrameSerializer
         return PlivoFrameSerializer(stream_id=call_data["stream_id"], call_id=call_data["call_id"])
+    if transport_type == "browser":
+        from .browser import BrowserSerializer
+        return BrowserSerializer()
     raise ValueError(f"Unsupported telephony provider: {transport_type}")
 
 
@@ -99,9 +105,10 @@ def build_transcript(messages: list[Any]) -> list[dict[str, str]]:
     return out
 
 
-async def run_call(websocket, transport_type: str, call_data: Any, session: CallSession, settings: Settings) -> None:
+async def run_call(websocket, transport_type: str, call_data: Any, session: CallSession, settings: Settings, *,
+                   sample_rate: int = SAMPLE_RATE, events: Any = None) -> None:
     state = CallState()
-    events = EventClient(settings.app_events_url, settings.worker_secret)
+    events = events if events is not None else EventClient(settings.app_events_url, settings.worker_secret)
     started = {"at": None}
 
     system_prompt = build_system_prompt(session)  # raises if the knowledge base is not approved
@@ -144,7 +151,7 @@ async def run_call(websocket, transport_type: str, call_data: Any, session: Call
     guard = SafetyGuard(session, state, events, speak_and_end)
 
     pipeline = Pipeline([transport.input(), stt, guard, aggregators.user(), llm, tts, transport.output(), aggregators.assistant()])
-    task = PipelineTask(pipeline, params=PipelineParams(audio_in_sample_rate=SAMPLE_RATE, audio_out_sample_rate=SAMPLE_RATE))
+    task = PipelineTask(pipeline, params=PipelineParams(audio_in_sample_rate=sample_rate, audio_out_sample_rate=sample_rate))
     holder["task"] = task
 
     @transport.event_handler("on_client_connected")
